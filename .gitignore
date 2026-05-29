@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+dist/
+.DS_Store
+minio-data/
+postgres_data/
+pgadmin_data/

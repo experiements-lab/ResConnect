@@ -1,0 +1,150 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: resconnect_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-resconnect}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-resconnect_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-resconnect}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - resconnect_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-resconnect}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: resconnect_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@resconnect.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    networks:
+      - resconnect_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kratos-migrate:
+    image: oryd/kratos:v1.3.1
+    container_name: resconnect_kratos_migrate
+    environment:
+      DSN: postgres://${POSTGRES_USER:-resconnect}:${POSTGRES_PASSWORD:-resconnect_secret}@postgres:5432/${POSTGRES_DB:-resconnect}?sslmode=disable&search_path=kratos
+    volumes:
+      - ./kratos/config:/etc/config/kratos
+    command: migrate sql -e --yes
+    networks:
+      - resconnect_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kratos:
+    image: oryd/kratos:v1.3.1
+    container_name: resconnect_kratos
+    restart: unless-stopped
+    environment:
+      DSN: postgres://${POSTGRES_USER:-resconnect}:${POSTGRES_PASSWORD:-resconnect_secret}@postgres:5432/${POSTGRES_DB:-resconnect}?sslmode=disable&search_path=kratos
+      LOG_LEVEL: info
+    volumes:
+      - ./kratos/config:/etc/config/kratos
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    ports:
+      - "4433:4433"   # public API
+      - "4434:4434"   # admin API
+    networks:
+      - resconnect_net
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+
+  minio:
+    image: minio/minio:latest
+    container_name: resconnect_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_secret}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO console
+    command: server /data --console-address ":9001"
+    networks:
+      - resconnect_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resconnect_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-resconnect}:${POSTGRES_PASSWORD:-resconnect_secret}@postgres:5432/${POSTGRES_DB:-resconnect}
+      KRATOS_PUBLIC_URL: http://kratos:4433
+      KRATOS_ADMIN_URL: http://kratos:4434
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin_secret}
+      MINIO_BUCKET_DOCS: registration-docs
+      MINIO_BUCKET_PHOTOS: property-photos
+      SECRET_KEY: ${SECRET_KEY:-change_me_in_production}
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    networks:
+      - resconnect_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kratos:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: resconnect_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_KRATOS_URL: http://localhost:4433
+    ports:
+      - "3000:3000"
+    networks:
+      - resconnect_net
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  minio_data:
+
+networks:
+  resconnect_net:
+    driver: bridge

@@ -1,0 +1,95 @@
+version: v1.3.1
+
+dsn: memory  # overridden by DSN env var at runtime
+
+serve:
+  public:
+    base_url: http://localhost:4433/
+    cors:
+      enabled: true
+      allowed_origins:
+        - http://localhost:3000
+      allowed_methods:
+        - POST
+        - GET
+        - PUT
+        - PATCH
+        - DELETE
+      allowed_headers:
+        - Authorization
+        - Cookie
+        - Content-Type
+      exposed_headers:
+        - Set-Cookie
+  admin:
+    base_url: http://kratos:4434/
+
+selfservice:
+  default_browser_return_url: http://localhost:3000/
+  allowed_return_urls:
+    - http://localhost:3000
+
+  methods:
+    password:
+      enabled: true
+    profile:
+      enabled: true
+    link:
+      enabled: true
+      config:
+        lifespan: 1h
+
+  flows:
+    registration:
+      ui_url: http://localhost:3000/auth/register
+      lifespan: 10m
+      after:
+        password:
+          hooks:
+            - hook: session
+
+    login:
+      ui_url: http://localhost:3000/auth/login
+      lifespan: 10m
+
+    logout:
+      after:
+        default_browser_return_url: http://localhost:3000/auth/login
+
+    settings:
+      ui_url: http://localhost:3000/settings
+      privileged_session_max_age: 15m
+
+    recovery:
+      enabled: true
+      ui_url: http://localhost:3000/auth/recovery
+
+    verification:
+      enabled: true
+      ui_url: http://localhost:3000/auth/verify
+      after:
+        default_browser_return_url: http://localhost:3000/dashboard
+
+session:
+  lifespan: 720h  # 30 days
+  cookie:
+    same_site: Lax
+
+log:
+  level: info
+  format: text
+  leak_sensitive_values: false
+
+identity:
+  default_schema_id: student
+  schemas:
+    - id: student
+      url: file:///etc/config/kratos/student.schema.json
+    - id: landlord
+      url: file:///etc/config/kratos/landlord.schema.json
+
+courier:
+  smtp:
+    connection_uri: smtps://test:test@mailslurper:1025/?skip_ssl_verify=true
+    from_address: no-reply@resconnect.co.za
+    from_name: ResConnect
