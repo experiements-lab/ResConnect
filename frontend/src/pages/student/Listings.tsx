@@ -25,7 +25,7 @@ interface Property {
 
 export default function Listings() {
   const { session } = useSession();
-  const isStudent = session?.identity?.traits?.role === "student";
+  const isStudent = session?.user?.user_metadata?.role === "student";
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);

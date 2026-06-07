@@ -4,9 +4,9 @@ import { useSession } from "../context/SessionContext";
 export default function Navbar() {
   const { session, loading, logout } = useSession();
 
-  const role = session?.identity?.traits?.role;
-  const traits = session?.identity?.traits as Record<string, string> | undefined;
-  const displayName = traits?.full_name?.split(" ")[0] ?? traits?.email ?? "";
+  const role = session?.user?.user_metadata?.role;
+  const meta = session?.user?.user_metadata as Record<string, string> | undefined;
+  const displayName = meta?.full_name?.split(" ")[0] ?? session?.user?.email ?? "";
 
   return (
     <nav style={{

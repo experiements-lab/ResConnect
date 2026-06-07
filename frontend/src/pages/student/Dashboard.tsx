@@ -76,7 +76,7 @@ export default function StudentDashboard() {
     }
   };
 
-  const traits = session?.identity?.traits as Record<string, string> | undefined;
+  const traits = session?.user?.user_metadata as Record<string, string> | undefined;
   const verificationStatus = profile?.verification_status ?? "unverified";
 
   const statusColor: Record<string, string> = {
