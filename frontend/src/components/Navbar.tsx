@@ -1,56 +1,51 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useSession } from "../hooks/useSession";
-import { kratosApi } from "../lib/api";
+import { Link } from "react-router-dom";
+import { useSession } from "../context/SessionContext";
 
 export default function Navbar() {
-  const { session, loading } = useSession();
-  const navigate = useNavigate();
+  const { session, loading, logout } = useSession();
 
-  const handleLogout = async () => {
-    try {
-      const { data } = await kratosApi.get("/self-service/logout/browser");
-      window.location.href = data.logout_url;
-    } catch {
-      navigate("/auth/login");
-    }
-  };
-
-  const role = session?.identity?.schema_id;
+  const role = session?.identity?.traits?.role;
+  const traits = session?.identity?.traits as Record<string, string> | undefined;
+  const displayName = traits?.full_name?.split(" ")[0] ?? traits?.email ?? "";
 
   return (
     <nav style={{
-      background: "var(--green)",
+      background: "var(--maroon)",
       color: "white",
       padding: "0.75rem 0",
-      boxShadow: "0 2px 4px rgba(0,0,0,0.15)"
+      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+      borderBottom: "3px solid var(--gold)",
     }}>
       <div className="container row" style={{ justifyContent: "space-between" }}>
-        <Link to="/" style={{ color: "white", fontWeight: 700, fontSize: "1.2rem" }}>
+        <Link to="/" style={{ color: "white", fontWeight: 800, fontSize: "1.25rem", letterSpacing: "0.01em" }}>
           ResConnect
         </Link>
         <div className="row">
-          <Link to="/listings" style={{ color: "white", opacity: 0.9 }}>Browse</Link>
+          <Link to="/listings" style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.95rem" }}>Browse</Link>
           {!loading && (
             session ? (
               <>
                 {role === "student" && (
-                  <Link to="/student/dashboard" style={{ color: "white", opacity: 0.9 }}>Dashboard</Link>
+                  <Link to="/student/dashboard" style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.95rem" }}>Dashboard</Link>
                 )}
                 {role === "landlord" && (
-                  <Link to="/landlord/dashboard" style={{ color: "white", opacity: 0.9 }}>My Properties</Link>
+                  <Link to="/landlord/dashboard" style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.95rem" }}>My Properties</Link>
                 )}
+                <span style={{ color: "var(--gold)", fontSize: "0.9rem", fontWeight: 600 }}>
+                  {displayName}
+                </span>
                 <button
-                  onClick={handleLogout}
-                  style={{ background: "rgba(255,255,255,0.15)", color: "white", padding: "0.4rem 0.9rem" }}
+                  onClick={logout}
+                  style={{ background: "rgba(255,255,255,0.12)", color: "white", padding: "0.4rem 0.9rem", border: "1px solid rgba(255,255,255,0.25)" }}
                 >
                   Logout
                 </button>
               </>
             ) : (
               <>
-                <Link to="/auth/login" style={{ color: "white", opacity: 0.9 }}>Login</Link>
+                <Link to="/auth/login" style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.95rem" }}>Login</Link>
                 <Link to="/auth/register">
-                  <button style={{ background: "white", color: "var(--green)" }}>Sign Up</button>
+                  <button style={{ background: "var(--gold)", color: "white", fontWeight: 600 }}>Sign Up</button>
                 </Link>
               </>
             )

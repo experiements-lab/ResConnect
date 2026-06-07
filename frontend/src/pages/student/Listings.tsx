@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../../lib/api";
+import { useSession } from "../../context/SessionContext";
 import PropertyCard from "../../components/PropertyCard";
 
 interface Room {
@@ -9,6 +10,7 @@ interface Room {
   nsfas_accepted: boolean;
   is_available: boolean;
   amenities: Record<string, boolean>;
+  available_from: string | null;
 }
 
 interface Property {
@@ -22,8 +24,13 @@ interface Property {
 }
 
 export default function Listings() {
+  const { session } = useSession();
+  const isStudent = session?.identity?.traits?.role === "student";
+
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isVerified, setIsVerified] = useState(false);
+  const [enquiredRoomIds, setEnquiredRoomIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
     max_price: "",
     room_type: "",
@@ -32,7 +39,17 @@ export default function Listings() {
     su_accredited_only: false,
   });
 
-  const fetchListings = async () => {
+  useEffect(() => {
+    if (!isStudent) return;
+    api.get("/students/me")
+      .then((r) => setIsVerified(r.data.verification_status === "verified"))
+      .catch(() => {});
+    api.get("/enquiries/me")
+      .then((r) => setEnquiredRoomIds(new Set(r.data.map((e: { room_id: string }) => e.room_id))))
+      .catch(() => {});
+  }, [isStudent]);
+
+  const fetchListings = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (filters.max_price) params.set("max_price", filters.max_price);
@@ -41,21 +58,25 @@ export default function Listings() {
     if (filters.max_distance_m) params.set("max_distance_m", filters.max_distance_m);
     if (filters.su_accredited_only) params.set("su_accredited_only", "true");
     try {
-      const { data } = await api.get(`/properties?${params}`);
+      const qs = params.toString();
+      const { data } = await api.get(qs ? `/properties/?${qs}` : "/properties/");
       setProperties(data);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
-  useEffect(() => { fetchListings(); }, []);
+  // Debounced reactive filters — no Search button needed
+  useEffect(() => {
+    const t = setTimeout(fetchListings, 400);
+    return () => clearTimeout(t);
+  }, [fetchListings]);
 
   return (
     <div className="page">
       <div className="container">
         <h1 style={{ marginBottom: "1.5rem" }}>Available Accommodation</h1>
 
-        {/* Filter bar */}
         <div className="card" style={{ marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: 1, minWidth: 140 }}>
@@ -77,13 +98,13 @@ export default function Listings() {
               </select>
             </div>
             <div style={{ flex: 1, minWidth: 160 }}>
-              <label>Max Distance to Campus</label>
+              <label>Max Distance</label>
               <select value={filters.max_distance_m} onChange={(e) => setFilters((f) => ({ ...f, max_distance_m: e.target.value }))}>
                 <option value="">Any distance</option>
-                <option value="500">500m</option>
-                <option value="1000">1km</option>
-                <option value="2000">2km</option>
-                <option value="5000">5km</option>
+                <option value="415">5 min walk</option>
+                <option value="830">10 min walk</option>
+                <option value="1660">20 min walk</option>
+                <option value="4150">50 min walk</option>
               </select>
             </div>
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
@@ -106,19 +127,25 @@ export default function Listings() {
                 SU Accredited
               </label>
             </div>
-            <button className="btn-primary" onClick={fetchListings}>Search</button>
           </div>
         </div>
 
         {loading ? (
-          <p>Loading listings...</p>
+          <p style={{ color: "var(--text-muted)" }}>Loading listings...</p>
         ) : properties.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "var(--text-muted)" }}>No properties match your filters.</p>
           </div>
         ) : (
           <div className="grid-3">
-            {properties.map((p) => <PropertyCard key={p.id} property={p} />)}
+            {properties.map((p) => (
+              <PropertyCard
+                key={p.id}
+                property={p}
+                isVerified={isVerified}
+                enquiredRoomIds={enquiredRoomIds}
+              />
+            ))}
           </div>
         )}
       </div>

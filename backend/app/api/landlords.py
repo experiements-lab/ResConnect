@@ -65,6 +65,35 @@ async def get_my_profile(
     return landlord
 
 
+@router.post("/me/sync", response_model=LandlordOut)
+async def sync_landlord_profile(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Upsert landlord profile from Kratos identity traits. Call after login/registration."""
+    session = await get_kratos_session(request)
+    if session["identity"]["traits"].get("role") != "landlord":
+        raise HTTPException(status_code=403, detail="Landlords only")
+    identity_id = uuid.UUID(session["identity"]["id"])
+    traits = session["identity"]["traits"]
+
+    result = await db.execute(select(Landlord).where(Landlord.identity_id == identity_id))
+    landlord = result.scalar_one_or_none()
+    if landlord:
+        return landlord
+
+    landlord = Landlord(
+        identity_id=identity_id,
+        full_name=traits.get("full_name", ""),
+        email=traits.get("email", ""),
+        phone=traits.get("phone"),
+    )
+    db.add(landlord)
+    await db.commit()
+    await db.refresh(landlord)
+    return landlord
+
+
 @router.post("/me/upload-ownership")
 async def upload_ownership_doc(
     request: Request,

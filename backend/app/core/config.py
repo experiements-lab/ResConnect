@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     minio_bucket_docs: str = "registration-docs"
     minio_bucket_photos: str = "property-photos"
     secret_key: str = "change_me_in_production"
+    cors_origins: str = "http://localhost:3000"
 
     class Config:
         env_file = ".env"

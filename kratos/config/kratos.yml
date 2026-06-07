@@ -4,7 +4,7 @@ dsn: memory  # overridden by DSN env var at runtime
 
 serve:
   public:
-    base_url: http://localhost:4433/
+    base_url: http://localhost:3000/kratos/
     cors:
       enabled: true
       allowed_origins:
@@ -28,6 +28,7 @@ selfservice:
   default_browser_return_url: http://localhost:3000/
   allowed_return_urls:
     - http://localhost:3000
+    - http://localhost:3000/auth/login
 
   methods:
     password:
@@ -65,10 +66,7 @@ selfservice:
       ui_url: http://localhost:3000/auth/recovery
 
     verification:
-      enabled: true
-      ui_url: http://localhost:3000/auth/verify
-      after:
-        default_browser_return_url: http://localhost:3000/dashboard
+      enabled: false
 
 session:
   lifespan: 720h  # 30 days
@@ -86,10 +84,12 @@ identity:
     - id: student
       url: file:///etc/config/kratos/student.schema.json
     - id: landlord
-      url: file:///etc/config/kratos/landlord.schema.json
+      url: file:///etc/config/kratos/student.schema.json
+    - id: default
+      url: file:///etc/config/kratos/student.schema.json
 
 courier:
   smtp:
-    connection_uri: smtps://test:test@mailslurper:1025/?skip_ssl_verify=true
+    connection_uri: smtp://localhost:1025/?disable_starttls=true
     from_address: no-reply@resconnect.co.za
     from_name: ResConnect

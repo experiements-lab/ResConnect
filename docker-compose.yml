@@ -27,7 +27,7 @@ services:
     container_name: resconnect_pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@resconnect.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@resconnect.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     volumes:
@@ -80,6 +80,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_secret}
+      MINIO_SERVER_URL: http://localhost:9000
     volumes:
       - minio_data:/data
     ports:
@@ -110,6 +111,7 @@ services:
       MINIO_BUCKET_DOCS: registration-docs
       MINIO_BUCKET_PHOTOS: property-photos
       SECRET_KEY: ${SECRET_KEY:-change_me_in_production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     volumes:
       - ./backend:/app
     ports:

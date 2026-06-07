@@ -10,3 +10,4 @@ python-multipart==0.0.18
 minio==7.2.11
 Pillow==11.0.0
 python-jose[cryptography]==3.3.0
+slowapi==0.1.9

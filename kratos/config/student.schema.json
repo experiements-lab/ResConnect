@@ -1,7 +1,7 @@
 {
   "$id": "https://resconnect.co.za/schemas/student.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Student",
+  "title": "User",
   "type": "object",
   "properties": {
     "traits": {
@@ -10,8 +10,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^[a-zA-Z0-9._%+\\-]+@sun\\.ac\\.za$",
-          "title": "SU Email Address",
+          "title": "Email Address",
           "ory.sh/kratos": {
             "credentials": {
               "password": { "identifier": true }
@@ -28,16 +27,19 @@
         },
         "student_number": {
           "type": "string",
-          "title": "Student Number",
-          "pattern": "^[0-9]{8}$"
+          "title": "Student Number"
+        },
+        "phone": {
+          "type": "string",
+          "title": "Phone Number"
         },
         "role": {
           "type": "string",
           "title": "Role",
-          "const": "student"
+          "enum": ["student", "landlord"]
         }
       },
-      "required": ["email", "full_name", "student_number"],
+      "required": ["email", "full_name", "role"],
       "additionalProperties": false
     }
   }

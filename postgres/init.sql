@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS students (
     faculty VARCHAR(100),
     nsfas_eligible BOOLEAN DEFAULT FALSE,
     verification_status VARCHAR(20) DEFAULT 'pending' CHECK (verification_status IN ('pending', 'verified', 'rejected')),
+    reject_reason TEXT,
     registration_doc_key VARCHAR(500),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS landlords (
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20),
     verification_status VARCHAR(20) DEFAULT 'pending' CHECK (verification_status IN ('pending', 'verified', 'rejected')),
+    reject_reason TEXT,
     ownership_doc_key VARCHAR(500),
     is_su_accredited BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -79,8 +81,23 @@ CREATE TABLE IF NOT EXISTS enquiries (
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     message TEXT NOT NULL,
     status VARCHAR(20) DEFAULT 'sent' CHECK (status IN ('sent', 'read', 'responded', 'closed')),
+    booking_status VARCHAR(20) DEFAULT 'enquiring' CHECK (booking_status IN ('enquiring', 'viewing_arranged', 'accepted', 'declined', 'cancelled')),
+    reject_reason TEXT,
+    landlord_response TEXT,
+    responded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_student_room UNIQUE (student_id, room_id)
+);
+
+-- Enquiry message thread (multiple messages per enquiry)
+CREATE TABLE IF NOT EXISTS enquiry_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    enquiry_id UUID NOT NULL REFERENCES enquiries(id) ON DELETE CASCADE,
+    sender_role VARCHAR(10) NOT NULL CHECK (sender_role IN ('student', 'landlord')),
+    body TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_enquiry_messages_enquiry_id ON enquiry_messages(enquiry_id);
 
 -- Scam reports
 CREATE TABLE IF NOT EXISTS scam_reports (

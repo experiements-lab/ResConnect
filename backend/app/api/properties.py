@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update as sql_update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.kratos import get_kratos_session
@@ -8,8 +8,8 @@ from app.core.storage import upload_file, get_presigned_url, ensure_buckets
 from app.core.config import settings
 from app.models.landlord import Landlord
 from app.models.property import Property, Room, PropertyPhoto
-from pydantic import BaseModel
-from datetime import date, datetime
+from pydantic import BaseModel, model_validator, Field as PydanticField
+from datetime import date, datetime, date as date_type
 import uuid
 
 router = APIRouter(prefix="/properties", tags=["properties"])
@@ -17,12 +17,20 @@ router = APIRouter(prefix="/properties", tags=["properties"])
 
 class RoomCreate(BaseModel):
     room_type: str
-    price_per_month: int
+    price_per_month: int = PydanticField(..., gt=0)
     nsfas_accepted: bool = False
     available_from: date | None = None
     amenities: dict = {}
-    total_count: int = 1
-    available_count: int = 1
+    total_count: int = PydanticField(default=1, ge=1)
+    available_count: int = PydanticField(default=1, ge=0)
+
+    @model_validator(mode="after")
+    def check_counts(self):
+        if self.available_count > self.total_count:
+            raise ValueError("available_count cannot exceed total_count")
+        if self.available_from and self.available_from < date_type.today():
+            raise ValueError("available_from must be today or a future date")
+        return self
 
 
 class PropertyCreate(BaseModel):
@@ -30,8 +38,9 @@ class PropertyCreate(BaseModel):
     address: str
     latitude: float | None = None
     longitude: float | None = None
-    distance_to_campus_m: int | None = None
+    distance_to_campus_m: int | None = PydanticField(default=None, gt=0)
     description: str | None = None
+    is_su_accredited: bool = False
     rooms: list[RoomCreate] = []
 
 
@@ -69,6 +78,8 @@ class PropertyOut(BaseModel):
 
 async def _get_landlord(request: Request, db: AsyncSession) -> Landlord:
     session = await get_kratos_session(request)
+    if session["identity"]["traits"].get("role") != "landlord":
+        raise HTTPException(status_code=403, detail="Landlords only")
     identity_id = uuid.UUID(session["identity"]["id"])
     result = await db.execute(select(Landlord).where(Landlord.identity_id == identity_id))
     landlord = result.scalar_one_or_none()
@@ -84,6 +95,8 @@ async def create_property(
     db: AsyncSession = Depends(get_db),
 ):
     landlord = await _get_landlord(request, db)
+    if not data.rooms:
+        raise HTTPException(status_code=400, detail="A property must have at least one room type")
     prop = Property(landlord_id=landlord.id, **{k: v for k, v in data.model_dump().items() if k != "rooms"})
     db.add(prop)
     await db.flush()
@@ -102,6 +115,20 @@ async def create_property(
     return _build_property_out(result.scalar_one())
 
 
+@router.get("/mine", response_model=list[PropertyOut])
+async def list_my_properties(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(Property)
+        .options(selectinload(Property.rooms), selectinload(Property.photos))
+        .where(Property.landlord_id == landlord.id)
+    )
+    return [_build_property_out(p) for p in result.scalars().all()]
+
+
 @router.get("/", response_model=list[PropertyOut])
 async def list_properties(
     min_price: int | None = Query(None),
@@ -112,7 +139,7 @@ async def list_properties(
     su_accredited_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
-    filters = [Property.is_active == True]
+    filters = [Property.is_active == True, Landlord.verification_status == "verified"]
     if su_accredited_only:
         filters.append(Property.is_su_accredited == True)
     if max_distance_m:
@@ -120,6 +147,7 @@ async def list_properties(
 
     result = await db.execute(
         select(Property)
+        .join(Landlord, Property.landlord_id == Landlord.id)
         .options(selectinload(Property.rooms), selectinload(Property.photos))
         .where(and_(*filters))
     )
@@ -141,6 +169,98 @@ async def list_properties(
             out.append(_build_property_out(prop))
 
     return out
+
+
+class PropertyUpdate(BaseModel):
+    name: str | None = None
+    address: str | None = None
+    description: str | None = None
+    distance_to_campus_m: int | None = PydanticField(default=None, gt=0)
+    is_su_accredited: bool | None = None
+    is_active: bool | None = None
+
+
+AMENITY_KEYS = {"wifi", "water_included", "electricity_included", "laundry", "parking", "security", "kitchen"}
+
+
+class RoomUpdate(BaseModel):
+    room_type: str | None = None
+    price_per_month: int | None = PydanticField(default=None, gt=0)
+    nsfas_accepted: bool | None = None
+    total_count: int | None = PydanticField(default=None, ge=1)
+    available_count: int | None = PydanticField(default=None, ge=0)
+    amenities: dict | None = None
+    available_from: date | None = None
+
+    @model_validator(mode="after")
+    def check_counts(self):
+        if self.available_count is not None and self.total_count is not None:
+            if self.available_count > self.total_count:
+                raise ValueError("available_count cannot exceed total_count")
+        if self.available_from and self.available_from < date_type.today():
+            raise ValueError("available_from must be today or a future date")
+        return self
+
+
+@router.patch("/{property_id}", response_model=PropertyOut)
+async def update_property(
+    property_id: uuid.UUID,
+    data: PropertyUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(Property)
+        .options(selectinload(Property.rooms), selectinload(Property.photos))
+        .where(Property.id == property_id, Property.landlord_id == landlord.id)
+    )
+    prop = result.scalar_one_or_none()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(prop, field, value)
+
+    await db.commit()
+    await db.refresh(prop)
+
+    result = await db.execute(
+        select(Property).options(selectinload(Property.rooms), selectinload(Property.photos))
+        .where(Property.id == property_id)
+    )
+    return _build_property_out(result.scalar_one())
+
+
+@router.patch("/{property_id}/rooms/{room_id}", response_model=RoomOut)
+async def update_room(
+    property_id: uuid.UUID,
+    room_id: uuid.UUID,
+    data: RoomUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(Room).join(Property).where(
+            Room.id == room_id,
+            Property.id == property_id,
+            Property.landlord_id == landlord.id,
+        )
+    )
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    update_data = data.model_dump(exclude_none=True)
+    if "amenities" in update_data:
+        update_data["amenities"] = {k: v for k, v in update_data["amenities"].items() if k in AMENITY_KEYS}
+    for field, value in update_data.items():
+        setattr(room, field, value)
+
+    await db.commit()
+    await db.refresh(room)
+    return room
 
 
 @router.get("/{property_id}", response_model=PropertyOut)
@@ -211,10 +331,63 @@ async def upload_photo(
     key = f"{property_id}/{uuid.uuid4()}{ext}"
     upload_file(settings.minio_bucket_photos, key, data, file.content_type)
 
+    if is_cover:
+        await db.execute(
+            sql_update(PropertyPhoto)
+            .where(PropertyPhoto.property_id == property_id, PropertyPhoto.is_cover == True)
+            .values(is_cover=False)
+        )
+
     photo = PropertyPhoto(property_id=property_id, storage_key=key, is_cover=is_cover)
     db.add(photo)
     await db.commit()
     return {"key": key}
+
+
+@router.delete("/{property_id}/rooms/{room_id}", status_code=204)
+async def delete_room(
+    property_id: uuid.UUID,
+    room_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(Room).join(Property).where(
+            Room.id == room_id,
+            Property.id == property_id,
+            Property.landlord_id == landlord.id,
+        )
+    )
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    await db.delete(room)
+    await db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/{property_id}", status_code=204)
+async def delete_property(
+    property_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(Property)
+        .options(selectinload(Property.photos))
+        .where(Property.id == property_id, Property.landlord_id == landlord.id)
+    )
+    prop = result.scalar_one_or_none()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    for photo in prop.photos:
+        from app.core.storage import delete_file
+        delete_file(settings.minio_bucket_photos, photo.storage_key)
+    await db.delete(prop)
+    await db.commit()
+    return Response(status_code=204)
 
 
 def _build_property_out(prop: Property) -> dict:

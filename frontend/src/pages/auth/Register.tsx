@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { kratosApi } from "../../lib/api";
+import { kratosApi, api } from "../../lib/api";
+import { useSession } from "../../context/SessionContext";
 
 type Role = "student" | "landlord";
 
@@ -12,27 +13,67 @@ export default function Register() {
   const [studentNumber, setStudentNumber] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { setSession } = useSession();
+
+  useEffect(() => {
+    kratosApi.get("/sessions/whoami")
+      .then(() => navigate("/listings", { replace: true }))
+      .catch(() => {});
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError("");
+    setSubmitting(true);
     try {
       const { data: flow } = await kratosApi.get("/self-service/registration/browser");
-      const traits: Record<string, string> = { email, full_name: fullName, role };
-      if (role === "student") traits.student_number = studentNumber;
-      if (role === "landlord") traits.phone = phone;
 
-      await kratosApi.post(`/self-service/registration?flow=${flow.id}`, {
+      const csrfNode = flow.ui.nodes.find(
+        (n: { attributes: { name: string; value?: string } }) => n.attributes.name === "csrf_token"
+      );
+      const csrfToken = csrfNode?.attributes?.value ?? "";
+
+      const body: Record<string, string> = {
         method: "password",
         password,
-        traits,
-      });
+        csrf_token: csrfToken,
+        "traits.email": email,
+        "traits.full_name": fullName,
+        "traits.role": role,
+      };
+      if (role === "student") body["traits.student_number"] = studentNumber;
+      if (role === "landlord") body["traits.phone"] = phone;
+
+      const { data: regData } = await kratosApi.post(`/self-service/registration?flow=${flow.id}`, body);
+
+      // Update shared session context immediately
+      setSession(regData?.session ?? null);
+
+      if (role === "student") {
+        try {
+          await api.post("/students/me/sync");
+        } catch (syncErr: unknown) {
+          const detail = (syncErr as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "";
+          if (detail.includes("sun.ac.za")) {
+            await kratosApi.get("/self-service/logout/browser").catch(() => {});
+            setSession(null);
+            setError("Students must register with their @sun.ac.za university email address.");
+            setSubmitting(false);
+            return;
+          }
+        }
+      } else {
+        await api.post("/landlords/me/sync").catch(() => {});
+      }
       navigate(role === "student" ? "/student/dashboard" : "/landlord/dashboard");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { ui?: { messages?: Array<{ text: string }> } } } })
         ?.response?.data?.ui?.messages?.[0]?.text;
       setError(msg || "Registration failed. Please try again.");
+      setSubmitting(false);
     }
   };
 
@@ -52,9 +93,9 @@ export default function Register() {
               onClick={() => setRole(r)}
               style={{
                 flex: 1,
-                background: role === r ? "var(--green)" : "transparent",
+                background: role === r ? "var(--maroon)" : "transparent",
                 color: role === r ? "white" : "var(--text-muted)",
-                border: "1.5px solid var(--green)",
+                border: "1.5px solid var(--maroon)",
                 borderRadius: "var(--radius)",
                 padding: "0.6rem",
                 fontWeight: 600,
@@ -103,7 +144,9 @@ export default function Register() {
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
           </div>
           {error && <p className="error">{error}</p>}
-          <button type="submit" className="btn-primary">Create Account</button>
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? "Creating account…" : "Create Account"}
+          </button>
         </form>
         <p style={{ marginTop: "1rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.9rem" }}>
           Already have an account? <a href="/auth/login">Sign in</a>

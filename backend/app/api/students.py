@@ -70,6 +70,39 @@ async def get_my_profile(
     return student
 
 
+@router.post("/me/sync", response_model=StudentOut)
+async def sync_student_profile(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Upsert student profile from Kratos identity traits. Call after login/registration."""
+    session = await get_kratos_session(request)
+    if session["identity"]["traits"].get("role") != "student":
+        raise HTTPException(status_code=403, detail="Students only")
+    identity_id = uuid.UUID(session["identity"]["id"])
+    traits = session["identity"]["traits"]
+
+    result = await db.execute(select(Student).where(Student.identity_id == identity_id))
+    student = result.scalar_one_or_none()
+    if student:
+        return student
+
+    email = traits.get("email", "")
+    if not email.endswith("@sun.ac.za"):
+        raise HTTPException(status_code=400, detail="Students must use an @sun.ac.za email address")
+
+    student = Student(
+        identity_id=identity_id,
+        student_number=traits.get("student_number", ""),
+        full_name=traits.get("full_name", ""),
+        sun_email=email,
+    )
+    db.add(student)
+    await db.commit()
+    await db.refresh(student)
+    return student
+
+
 @router.post("/me/upload-registration")
 async def upload_registration_doc(
     request: Request,

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, SmallInteger, DateTime
+from sqlalchemy import String, Boolean, SmallInteger, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
@@ -18,6 +18,7 @@ class Student(Base):
     faculty: Mapped[str | None] = mapped_column(String(100))
     nsfas_eligible: Mapped[bool] = mapped_column(Boolean, default=False)
     verification_status: Mapped[str] = mapped_column(String(20), default="pending")
+    reject_reason: Mapped[str | None] = mapped_column(Text)
     registration_doc_key: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

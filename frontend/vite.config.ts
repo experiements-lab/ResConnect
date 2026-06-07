@@ -6,9 +6,15 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://backend:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+      "/kratos": {
+        target: "http://kratos:4433",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/kratos/, ""),
+        cookieDomainRewrite: "localhost",
       },
     },
   },
