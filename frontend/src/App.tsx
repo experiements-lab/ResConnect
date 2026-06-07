@@ -15,7 +15,7 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
   const { session, loading } = useSession();
   if (loading) return <div className="page container">Loading...</div>;
   if (!session) return <Navigate to="/auth/login" replace />;
-  const userRole = session.identity.traits?.role;
+  const userRole = session.user?.user_metadata?.role;
   if (role && userRole !== role) {
     return <Navigate to={userRole === "student" ? "/student/dashboard" : "/landlord/dashboard"} replace />;
   }

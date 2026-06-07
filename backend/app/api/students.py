@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.core.kratos import get_kratos_session
-from app.core.storage import upload_file, get_presigned_url, ensure_buckets
+from app.core.auth import get_current_user as get_kratos_session
+from app.core.storage import upload_file, ensure_buckets
 from app.core.config import settings
 from app.models.student import Student
 from pydantic import BaseModel
@@ -126,7 +126,7 @@ async def upload_registration_doc(
 
     ensure_buckets()
     key = f"{student.id}/{uuid.uuid4()}-registration{_ext(file.content_type)}"
-    upload_file(settings.minio_bucket_docs, key, data, file.content_type)
+    upload_file(settings.supabase_bucket_docs, key, data, file.content_type)
 
     student.registration_doc_key = key
     student.verification_status = "pending"

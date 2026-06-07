@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { kratosApi, api } from "../../lib/api";
-import { useSession } from "../../context/SessionContext";
+import { supabase } from "../../lib/supabase";
+import { api } from "../../lib/api";
 
 type Role = "student" | "landlord";
 
@@ -15,42 +15,35 @@ export default function Register() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { setSession } = useSession();
-
-  useEffect(() => {
-    kratosApi.get("/sessions/whoami")
-      .then(() => navigate("/listings", { replace: true }))
-      .catch(() => {});
-  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
+
+    if (role === "student" && !email.endsWith("@sun.ac.za")) {
+      setError("Students must register with their @sun.ac.za university email address.");
+      return;
+    }
+
     setError("");
     setSubmitting(true);
     try {
-      const { data: flow } = await kratosApi.get("/self-service/registration/browser");
+      const metadata: Record<string, string> = { role, full_name: fullName };
+      if (role === "student") metadata.student_number = studentNumber;
+      if (role === "landlord") metadata.phone = phone;
 
-      const csrfNode = flow.ui.nodes.find(
-        (n: { attributes: { name: string; value?: string } }) => n.attributes.name === "csrf_token"
-      );
-      const csrfToken = csrfNode?.attributes?.value ?? "";
-
-      const body: Record<string, string> = {
-        method: "password",
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
         password,
-        csrf_token: csrfToken,
-        "traits.email": email,
-        "traits.full_name": fullName,
-        "traits.role": role,
-      };
-      if (role === "student") body["traits.student_number"] = studentNumber;
-      if (role === "landlord") body["traits.phone"] = phone;
+        options: { data: metadata },
+      });
+      if (authError) throw authError;
 
-      const { data: regData } = await kratosApi.post(`/self-service/registration?flow=${flow.id}`, body);
-
-      // Update shared session context immediately
-      setSession(regData?.session ?? null);
+      if (!data.session) {
+        // Email confirmation required — inform the user
+        navigate("/auth/login");
+        return;
+      }
 
       if (role === "student") {
         try {
@@ -58,8 +51,7 @@ export default function Register() {
         } catch (syncErr: unknown) {
           const detail = (syncErr as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "";
           if (detail.includes("sun.ac.za")) {
-            await kratosApi.get("/self-service/logout/browser").catch(() => {});
-            setSession(null);
+            await supabase.auth.signOut();
             setError("Students must register with their @sun.ac.za university email address.");
             setSubmitting(false);
             return;
@@ -70,9 +62,7 @@ export default function Register() {
       }
       navigate(role === "student" ? "/student/dashboard" : "/landlord/dashboard");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { ui?: { messages?: Array<{ text: string }> } } } })
-        ?.response?.data?.ui?.messages?.[0]?.text;
-      setError(msg || "Registration failed. Please try again.");
+      setError((err as { message?: string })?.message || "Registration failed. Please try again.");
       setSubmitting(false);
     }
   };

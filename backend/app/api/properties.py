@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, update as sql_update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.core.kratos import get_kratos_session
+from app.core.auth import get_current_user as get_kratos_session
 from app.core.storage import upload_file, get_presigned_url, ensure_buckets
 from app.core.config import settings
 from app.models.landlord import Landlord
@@ -329,7 +329,7 @@ async def upload_photo(
     ensure_buckets()
     ext = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}.get(file.content_type, ".jpg")
     key = f"{property_id}/{uuid.uuid4()}{ext}"
-    upload_file(settings.minio_bucket_photos, key, data, file.content_type)
+    upload_file(settings.supabase_bucket_photos, key, data, file.content_type)
 
     if is_cover:
         await db.execute(
@@ -384,7 +384,7 @@ async def delete_property(
         raise HTTPException(status_code=404, detail="Property not found")
     for photo in prop.photos:
         from app.core.storage import delete_file
-        delete_file(settings.minio_bucket_photos, photo.storage_key)
+        delete_file(settings.supabase_bucket_photos, photo.storage_key)
     await db.delete(prop)
     await db.commit()
     return Response(status_code=204)
@@ -392,7 +392,7 @@ async def delete_property(
 
 def _build_property_out(prop: Property) -> dict:
     cover = next((p for p in prop.photos if p.is_cover), None)
-    cover_url = get_presigned_url(settings.minio_bucket_photos, cover.storage_key) if cover else None
+    cover_url = get_presigned_url(settings.supabase_bucket_photos, cover.storage_key) if cover else None
     return PropertyOut(
         id=prop.id,
         name=prop.name,

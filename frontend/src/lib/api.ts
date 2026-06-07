@@ -1,31 +1,24 @@
 import axios from "axios";
+import { supabase } from "./supabase";
 
 export const api = axios.create({
-  baseURL: "/api",
-  withCredentials: true,
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
   timeout: 15000,
 });
 
-export const kratosApi = axios.create({
-  baseURL: "/kratos",
-  withCredentials: true,
-  timeout: 15000,
+// Attach Supabase JWT to every request
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+  return config;
 });
 
-// Global 401 handler — expired session redirects to login instead of showing errors
-const handle401 = (error: unknown) => {
+// Redirect to login on 401
+api.interceptors.response.use((r) => r, (error: unknown) => {
   const status = (error as { response?: { status?: number } })?.response?.status;
   if (status === 401 && !window.location.pathname.startsWith("/auth")) {
-    window.location.href = "/auth/login";
-  }
-  return Promise.reject(error);
-};
-
-api.interceptors.response.use((r) => r, handle401);
-kratosApi.interceptors.response.use((r) => r, (error) => {
-  const url = (error as { config?: { url?: string } })?.config?.url ?? "";
-  const status = (error as { response?: { status?: number } })?.response?.status;
-  if (status === 401 && !url.includes("whoami") && !window.location.pathname.startsWith("/auth")) {
     window.location.href = "/auth/login";
   }
   return Promise.reject(error);

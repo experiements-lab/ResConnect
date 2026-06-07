@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.core.kratos import get_kratos_session
+from app.core.auth import get_current_user as get_kratos_session
 from app.core.storage import upload_file, ensure_buckets
 from app.core.config import settings
 from app.models.landlord import Landlord
@@ -118,7 +118,7 @@ async def upload_ownership_doc(
     ensure_buckets()
     ext = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}.get(file.content_type, "")
     key = f"{landlord.id}/{uuid.uuid4()}-ownership{ext}"
-    upload_file(settings.minio_bucket_docs, key, data, file.content_type)
+    upload_file(settings.supabase_bucket_docs, key, data, file.content_type)
 
     landlord.ownership_doc_key = key
     landlord.verification_status = "pending"

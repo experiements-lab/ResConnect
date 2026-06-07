@@ -4,7 +4,7 @@ from sqlalchemy import select
 from pydantic import Field as PydanticField
 
 from app.core.database import get_db
-from app.core.kratos import get_kratos_session
+from app.core.auth import get_current_user as get_kratos_session
 from app.models.student import Student
 from app.models.landlord import Landlord
 from app.models.enquiry import Enquiry, EnquiryMessage

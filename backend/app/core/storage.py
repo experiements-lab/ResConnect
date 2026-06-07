@@ -1,52 +1,32 @@
-from minio import Minio
-from minio.error import S3Error
-from app.core.config import settings
 import io
+from supabase import create_client, Client
+from app.core.config import settings
 
-# Used for all actual S3 operations inside the Docker network
-client = Minio(
-    settings.minio_endpoint,
-    access_key=settings.minio_access_key,
-    secret_key=settings.minio_secret_key,
-    secure=False,
-)
-
-# Used only for generating presigned URLs — endpoint must be browser-reachable.
-# region="us-east-1" prevents an automatic bucket-location lookup (which would
-# fail since localhost:9000 is unreachable from inside the container).
-_presign_client = Minio(
-    "localhost:9000",
-    access_key=settings.minio_access_key,
-    secret_key=settings.minio_secret_key,
-    secure=False,
-    region="us-east-1",
-)
+_client: Client = create_client(settings.supabase_url, settings.supabase_service_key)
 
 
 def ensure_buckets():
-    for bucket in [settings.minio_bucket_docs, settings.minio_bucket_photos]:
-        if not client.bucket_exists(bucket):
-            client.make_bucket(bucket)
+    """No-op: buckets are created in the Supabase dashboard."""
+    pass
 
 
 def upload_file(bucket: str, key: str, data: bytes, content_type: str) -> str:
-    client.put_object(
-        bucket, key, io.BytesIO(data), len(data), content_type=content_type
+    _client.storage.from_(bucket).upload(
+        key, data, {"content-type": content_type, "upsert": "true"}
     )
     return key
 
 
 def get_presigned_url(bucket: str, key: str, expires_hours: int = 1) -> str:
-    from datetime import timedelta
-    # _presign_client uses localhost:9000 so the URL is browser-accessible.
-    # presigned_get_object does not make a network connection — it only computes
-    # an HMAC signature — so localhost:9000 not being reachable from the container
-    # is not a problem here.
-    return _presign_client.presigned_get_object(bucket, key, expires=timedelta(hours=expires_hours))
+    result = _client.storage.from_(bucket).create_signed_url(key, expires_hours * 3600)
+    # supabase-py v2 returns a dict; newer versions may return an object
+    if isinstance(result, dict):
+        return result.get("signedURL") or result.get("signedUrl") or ""
+    return str(getattr(result, "signed_url", ""))
 
 
 def delete_file(bucket: str, key: str):
     try:
-        client.remove_object(bucket, key)
-    except S3Error:
+        _client.storage.from_(bucket).remove([key])
+    except Exception:
         pass

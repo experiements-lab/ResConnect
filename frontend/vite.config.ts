@@ -4,17 +4,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5173,
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        target: "http://localhost:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
-      },
-      "/kratos": {
-        target: "http://kratos:4433",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/kratos/, ""),
-        cookieDomainRewrite: "localhost",
       },
     },
   },

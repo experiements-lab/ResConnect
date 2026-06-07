@@ -3,15 +3,13 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: str
-    kratos_public_url: str
-    kratos_admin_url: str
-    minio_endpoint: str
-    minio_access_key: str
-    minio_secret_key: str
-    minio_bucket_docs: str = "registration-docs"
-    minio_bucket_photos: str = "property-photos"
+    supabase_url: str
+    supabase_service_key: str
+    supabase_jwt_secret: str
+    supabase_bucket_docs: str = "registration-docs"
+    supabase_bucket_photos: str = "property-photos"
     secret_key: str = "change_me_in_production"
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:5173"
 
     class Config:
         env_file = ".env"
