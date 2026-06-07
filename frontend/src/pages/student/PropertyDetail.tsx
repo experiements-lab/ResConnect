@@ -58,7 +58,7 @@ export default function PropertyDetail() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
 
-  const isStudent = session?.identity?.traits?.role === "student";
+  const isStudent = session?.user?.user_metadata?.role === "student";
 
   useEffect(() => {
     api.get(`/properties/${id}`)
@@ -75,8 +75,6 @@ export default function PropertyDetail() {
         .catch(() => {});
     }
   }, [id, isStudent, navigate]);
-
-  const enquiredRoomIds = new Set(enquiries.map((e) => e.room_id));
 
   const sendEnquiry = async (roomId: string) => {
     if (!message.trim()) return;
