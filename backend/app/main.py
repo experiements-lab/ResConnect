@@ -6,6 +6,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.api import students, landlords, properties, enquiries, admin
 from app.core.config import settings
+from app.core.database import engine
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
@@ -29,6 +30,16 @@ app.include_router(landlords.router)
 app.include_router(properties.router)
 app.include_router(enquiries.router)
 app.include_router(admin.router)
+
+
+@app.on_event("startup")
+async def warm_up_db():
+    """Force SQLAlchemy's one-time dialect initialization (server version query)
+    to happen on a single connection before concurrent traffic arrives — otherwise
+    two requests can race to be "first", each opening its own NullPool connection
+    and colliding on PgBouncer's multiplexed backend connection."""
+    async with engine.connect():
+        pass
 
 
 @app.get("/health")
