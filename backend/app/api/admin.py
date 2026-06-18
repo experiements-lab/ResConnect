@@ -8,7 +8,10 @@ from app.models.student import Student
 from app.models.landlord import Landlord
 from app.api.notifications import create_notification
 from pydantic import BaseModel, Field as PydanticField
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -104,13 +107,20 @@ async def verify_student(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     student.verification_status = "verified"
-    await create_notification(
-        db, student.identity_id, "account_verified",
-        "Account verified",
-        "Your student account has been verified. You can now send enquiries.",
-        "/student/dashboard",
-    )
     await db.commit()
+
+    try:
+        await create_notification(
+            db, student.identity_id, "account_verified",
+            "Account verified",
+            "Your student account has been verified. You can now send enquiries.",
+            "/student/dashboard",
+        )
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to create notification for verified student %s", student_id)
+        await db.rollback()
+
     return {"id": student_id, "verification_status": "verified"}
 
 
@@ -127,13 +137,20 @@ async def reject_student(
         raise HTTPException(status_code=404, detail="Student not found")
     student.verification_status = "rejected"
     student.reject_reason = body.reason
-    await create_notification(
-        db, student.identity_id, "account_rejected",
-        "Account verification rejected",
-        f"Your student account verification was rejected: {body.reason}",
-        "/student/dashboard",
-    )
     await db.commit()
+
+    try:
+        await create_notification(
+            db, student.identity_id, "account_rejected",
+            "Account verification rejected",
+            f"Your student account verification was rejected: {body.reason}",
+            "/student/dashboard",
+        )
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to create notification for rejected student %s", student_id)
+        await db.rollback()
+
     return {"id": student_id, "verification_status": "rejected"}
 
 
@@ -148,13 +165,20 @@ async def verify_landlord(
     if not landlord:
         raise HTTPException(status_code=404, detail="Landlord not found")
     landlord.verification_status = "verified"
-    await create_notification(
-        db, landlord.identity_id, "account_verified",
-        "Account verified",
-        "Your landlord account has been verified. Your listings are now visible to students.",
-        "/landlord/dashboard",
-    )
     await db.commit()
+
+    try:
+        await create_notification(
+            db, landlord.identity_id, "account_verified",
+            "Account verified",
+            "Your landlord account has been verified. Your listings are now visible to students.",
+            "/landlord/dashboard",
+        )
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to create notification for verified landlord %s", landlord_id)
+        await db.rollback()
+
     return {"id": landlord_id, "verification_status": "verified"}
 
 
@@ -171,11 +195,18 @@ async def reject_landlord(
         raise HTTPException(status_code=404, detail="Landlord not found")
     landlord.verification_status = "rejected"
     landlord.reject_reason = body.reason
-    await create_notification(
-        db, landlord.identity_id, "account_rejected",
-        "Account verification rejected",
-        f"Your landlord account verification was rejected: {body.reason}",
-        "/landlord/dashboard",
-    )
     await db.commit()
+
+    try:
+        await create_notification(
+            db, landlord.identity_id, "account_rejected",
+            "Account verification rejected",
+            f"Your landlord account verification was rejected: {body.reason}",
+            "/landlord/dashboard",
+        )
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to create notification for rejected landlord %s", landlord_id)
+        await db.rollback()
+
     return {"id": landlord_id, "verification_status": "rejected"}
