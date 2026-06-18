@@ -7,13 +7,16 @@ from app.core.config import settings
 engine = create_async_engine(
     settings.database_url,
     echo=False,
-    # Supabase's transaction-mode pooler (PgBouncer) doesn't support asyncpg's
-    # server-side prepared statement cache across pooled connections. NullPool
-    # also stops SQLAlchemy from reusing the same asyncpg connection object
-    # across requests, since each reuse can land on a different PgBouncer-
-    # multiplexed backend connection than the one its cache was built against.
+    # Supabase's transaction-mode pooler (PgBouncer) multiplexes many client
+    # connections onto a small set of backend Postgres connections, so a named
+    # prepared statement created by one client can collide with the same name
+    # generated independently by another. SQLAlchemy's asyncpg dialect prepares
+    # statements directly (bypassing asyncpg's own statement_cache_size knob),
+    # so prepared_statement_cache_size=0 is what actually makes it use unnamed
+    # statements, which can't collide. NullPool avoids reusing the same asyncpg
+    # connection object across requests for the same reason.
     poolclass=NullPool,
-    connect_args={"statement_cache_size": 0},
+    connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0},
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
