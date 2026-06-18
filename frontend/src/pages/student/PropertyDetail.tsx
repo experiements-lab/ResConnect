@@ -26,6 +26,12 @@ interface Room {
   available_count: number;
 }
 
+interface Photo {
+  id: string;
+  url: string;
+  is_cover: boolean;
+}
+
 interface Property {
   id: string;
   name: string;
@@ -35,6 +41,7 @@ interface Property {
   is_su_accredited: boolean;
   rooms: Room[];
   cover_photo_url: string | null;
+  photos: Photo[];
 }
 
 interface Enquiry {
@@ -57,12 +64,17 @@ export default function PropertyDetail() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [activePhoto, setActivePhoto] = useState<string | null>(null);
 
   const isStudent = session?.user?.user_metadata?.role === "student";
 
   useEffect(() => {
     api.get(`/properties/${id}`)
-      .then((r) => setProperty(r.data))
+      .then((r) => {
+        setProperty(r.data);
+        const cover = r.data.photos?.find((p: Photo) => p.is_cover) ?? r.data.photos?.[0];
+        setActivePhoto(cover?.url ?? r.data.cover_photo_url ?? null);
+      })
       .catch(() => navigate("/listings"))
       .finally(() => setLoading(false));
 
@@ -112,12 +124,34 @@ export default function PropertyDetail() {
           Back to listings
         </button>
 
-        {property.cover_photo_url && (
-          <img
-            src={property.cover_photo_url}
-            alt={property.name}
-            style={{ width: "100%", maxHeight: 320, objectFit: "cover", borderRadius: "var(--radius)", marginBottom: "1.5rem" }}
-          />
+        {activePhoto && (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <img
+              src={activePhoto}
+              alt={property.name}
+              style={{ width: "100%", maxHeight: 320, objectFit: "cover", borderRadius: "var(--radius)" }}
+            />
+            {property.photos.length > 1 && (
+              <div className="row" style={{ gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                {property.photos.map((photo) => (
+                  <img
+                    key={photo.id}
+                    src={photo.url}
+                    alt=""
+                    onClick={() => setActivePhoto(photo.url)}
+                    style={{
+                      width: 70,
+                      height: 50,
+                      objectFit: "cover",
+                      borderRadius: "var(--radius)",
+                      cursor: "pointer",
+                      border: activePhoto === photo.url ? "2px solid var(--maroon)" : "2px solid transparent",
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>

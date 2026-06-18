@@ -4,7 +4,7 @@ from sqlalchemy import select, and_, update as sql_update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.auth import get_current_user as get_kratos_session
-from app.core.storage import upload_file, get_presigned_url, ensure_buckets
+from app.core.storage import upload_file, get_presigned_url, ensure_buckets, delete_file
 from app.core.config import settings
 from app.models.landlord import Landlord
 from app.models.property import Property, Room, PropertyPhoto
@@ -59,6 +59,15 @@ class RoomOut(BaseModel):
         from_attributes = True
 
 
+class PhotoOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    is_cover: bool
+
+    class Config:
+        from_attributes = True
+
+
 class PropertyOut(BaseModel):
     id: uuid.UUID
     name: str
@@ -71,6 +80,7 @@ class PropertyOut(BaseModel):
     is_su_accredited: bool
     rooms: list[RoomOut] = []
     cover_photo_url: str | None = None
+    photos: list[PhotoOut] = []
 
     class Config:
         from_attributes = True
@@ -344,6 +354,58 @@ async def upload_photo(
     return {"key": key}
 
 
+@router.delete("/{property_id}/photos/{photo_id}", status_code=204)
+async def delete_photo(
+    property_id: uuid.UUID,
+    photo_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(PropertyPhoto).join(Property).where(
+            PropertyPhoto.id == photo_id,
+            Property.id == property_id,
+            Property.landlord_id == landlord.id,
+        )
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    delete_file(settings.supabase_bucket_photos, photo.storage_key)
+    await db.delete(photo)
+    await db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/{property_id}/photos/{photo_id}/set-cover")
+async def set_cover_photo(
+    property_id: uuid.UUID,
+    photo_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    landlord = await _get_landlord(request, db)
+    result = await db.execute(
+        select(PropertyPhoto).join(Property).where(
+            PropertyPhoto.id == photo_id,
+            Property.id == property_id,
+            Property.landlord_id == landlord.id,
+        )
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    await db.execute(
+        sql_update(PropertyPhoto)
+        .where(PropertyPhoto.property_id == property_id, PropertyPhoto.is_cover == True)
+        .values(is_cover=False)
+    )
+    photo.is_cover = True
+    await db.commit()
+    return {"message": "Cover photo updated"}
+
+
 @router.delete("/{property_id}/rooms/{room_id}", status_code=204)
 async def delete_room(
     property_id: uuid.UUID,
@@ -383,7 +445,6 @@ async def delete_property(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
     for photo in prop.photos:
-        from app.core.storage import delete_file
         delete_file(settings.supabase_bucket_photos, photo.storage_key)
     await db.delete(prop)
     await db.commit()
@@ -393,6 +454,14 @@ async def delete_property(
 def _build_property_out(prop: Property) -> dict:
     cover = next((p for p in prop.photos if p.is_cover), None)
     cover_url = get_presigned_url(settings.supabase_bucket_photos, cover.storage_key) if cover else None
+    photos = [
+        PhotoOut(
+            id=p.id,
+            url=get_presigned_url(settings.supabase_bucket_photos, p.storage_key),
+            is_cover=p.is_cover,
+        )
+        for p in prop.photos
+    ]
     return PropertyOut(
         id=prop.id,
         name=prop.name,
@@ -405,4 +474,5 @@ def _build_property_out(prop: Property) -> dict:
         is_su_accredited=prop.is_su_accredited,
         rooms=prop.rooms,
         cover_photo_url=cover_url,
+        photos=photos,
     )

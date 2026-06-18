@@ -35,6 +35,13 @@ interface Property {
   distance_to_campus_m: number | null;
   rooms: Room[];
   cover_photo_url: string | null;
+  photos: Photo[];
+}
+
+interface Photo {
+  id: string;
+  url: string;
+  is_cover: boolean;
 }
 
 interface Enquiry {
@@ -163,6 +170,27 @@ export default function LandlordDashboard() {
       setPhotoMsg("Upload failed. Please try again.");
     } finally {
       setPhotoUploading(false);
+    }
+  };
+
+  const setCoverPhoto = async (propertyId: string, photoId: string) => {
+    try {
+      await api.post(`/properties/${propertyId}/photos/${photoId}/set-cover`);
+      const { data } = await api.get("/properties/mine");
+      setProperties(data);
+    } catch {
+      setPhotoMsg("Could not update cover photo.");
+    }
+  };
+
+  const deletePhoto = async (propertyId: string, photoId: string) => {
+    if (!confirm("Delete this photo?")) return;
+    try {
+      await api.delete(`/properties/${propertyId}/photos/${photoId}`);
+      const { data } = await api.get("/properties/mine");
+      setProperties(data);
+    } catch {
+      setPhotoMsg("Could not delete photo.");
     }
   };
 
@@ -460,14 +488,51 @@ export default function LandlordDashboard() {
                       </div>
 
                       <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
-                        <label style={{ marginBottom: "0.5rem", display: "block" }}>Property Photo</label>
-                        {prop.cover_photo_url && (
-                          <img src={prop.cover_photo_url} alt="Cover" style={{ width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: "var(--radius)", marginBottom: "0.75rem" }} />
+                        <label style={{ marginBottom: "0.5rem", display: "block" }}>Property Photos</label>
+                        {prop.photos.length > 0 && (
+                          <div className="row" style={{ flexWrap: "wrap", gap: "0.6rem", marginBottom: "0.75rem" }}>
+                            {prop.photos.map((photo) => (
+                              <div key={photo.id} style={{ position: "relative" }}>
+                                <img
+                                  src={photo.url}
+                                  alt=""
+                                  style={{
+                                    width: 110,
+                                    height: 80,
+                                    objectFit: "cover",
+                                    borderRadius: "var(--radius)",
+                                    border: photo.is_cover ? "2px solid var(--maroon)" : "2px solid transparent",
+                                  }}
+                                />
+                                {photo.is_cover && (
+                                  <span style={{ position: "absolute", top: 2, left: 2, fontSize: "0.65rem", background: "var(--maroon)", color: "#fff", padding: "0.1rem 0.35rem", borderRadius: "var(--radius)" }}>
+                                    Cover
+                                  </span>
+                                )}
+                                <div className="row" style={{ gap: "0.25rem", marginTop: "0.25rem" }}>
+                                  {!photo.is_cover && (
+                                    <button
+                                      style={{ fontSize: "0.65rem", padding: "0.15rem 0.4rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "#fff", cursor: "pointer" }}
+                                      onClick={() => setCoverPhoto(prop.id, photo.id)}
+                                    >
+                                      Set Cover
+                                    </button>
+                                  )}
+                                  <button
+                                    style={{ fontSize: "0.65rem", padding: "0.15rem 0.4rem", border: "none", borderRadius: "var(--radius)", background: "#fee2e2", color: "#991b1b", cursor: "pointer" }}
+                                    onClick={() => deletePhoto(prop.id, photo.id)}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                         <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
                           <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(e) => { setPhotoFile(e.target.files?.[0] || null); setPhotoMsg(""); }} style={{ border: "none", padding: 0, flex: 1, minWidth: 160 }} />
-                          <button className="btn-primary" style={{ fontSize: "0.8rem", padding: "0.4rem 0.8rem" }} disabled={!photoFile || photoUploading} onClick={() => uploadPhoto(prop.id, true)}>
-                            {photoUploading ? "Uploading..." : "Set as Cover"}
+                          <button className="btn-primary" style={{ fontSize: "0.8rem", padding: "0.4rem 0.8rem" }} disabled={!photoFile || photoUploading} onClick={() => uploadPhoto(prop.id, prop.photos.length === 0)}>
+                            {photoUploading ? "Uploading..." : "Add Photo"}
                           </button>
                         </div>
                         {photoMsg && <p style={{ fontSize: "0.82rem", color: "var(--maroon)", marginTop: "0.3rem" }}>{photoMsg}</p>}
