@@ -3,6 +3,16 @@ import { api } from "../../lib/api";
 import { useSession } from "../../context/SessionContext";
 import PropertyCard from "../../components/PropertyCard";
 
+const AMENITIES = [
+  { key: "wifi", label: "WiFi" },
+  { key: "water_included", label: "Water incl." },
+  { key: "electricity_included", label: "Electricity incl." },
+  { key: "laundry", label: "Laundry" },
+  { key: "parking", label: "Parking" },
+  { key: "security", label: "Security" },
+  { key: "kitchen", label: "Kitchen" },
+];
+
 interface Room {
   id: string;
   room_type: string;
@@ -37,7 +47,17 @@ export default function Listings() {
     nsfas_only: false,
     max_distance_m: "",
     su_accredited_only: false,
+    amenities: new Set<string>(),
   });
+
+  const toggleAmenity = (key: string) => {
+    setFilters((f) => {
+      const next = new Set(f.amenities);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return { ...f, amenities: next };
+    });
+  };
 
   useEffect(() => {
     if (!isStudent) return;
@@ -57,6 +77,7 @@ export default function Listings() {
     if (filters.nsfas_only) params.set("nsfas_only", "true");
     if (filters.max_distance_m) params.set("max_distance_m", filters.max_distance_m);
     if (filters.su_accredited_only) params.set("su_accredited_only", "true");
+    if (filters.amenities.size > 0) params.set("amenities", Array.from(filters.amenities).join(","));
     try {
       const qs = params.toString();
       const { data } = await api.get(qs ? `/properties/?${qs}` : "/properties/");
@@ -127,6 +148,19 @@ export default function Listings() {
                 SU Accredited
               </label>
             </div>
+          </div>
+          <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem", marginTop: "0.85rem" }}>
+            {AMENITIES.map((a) => (
+              <label key={a.key} style={{ margin: 0, display: "flex", gap: "0.4rem", alignItems: "center", fontSize: "0.85rem" }}>
+                <input
+                  type="checkbox"
+                  checked={filters.amenities.has(a.key)}
+                  onChange={() => toggleAmenity(a.key)}
+                  style={{ width: "auto" }}
+                />
+                {a.label}
+              </label>
+            ))}
           </div>
         </div>
 

@@ -147,8 +147,10 @@ async def list_properties(
     nsfas_only: bool = Query(False),
     max_distance_m: int | None = Query(None),
     su_accredited_only: bool = Query(False),
+    amenities: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    required_amenities = [a for a in amenities.split(",") if a] if amenities else []
     filters = [Property.is_active == True, Landlord.verification_status == "verified"]
     if su_accredited_only:
         filters.append(Property.is_su_accredited == True)
@@ -174,6 +176,8 @@ async def list_properties(
             rooms = [r for r in rooms if r.room_type == room_type]
         if nsfas_only:
             rooms = [r for r in rooms if r.nsfas_accepted]
+        if required_amenities:
+            rooms = [r for r in rooms if all(r.amenities.get(a) for a in required_amenities)]
         if rooms:
             prop.rooms = rooms
             out.append(_build_property_out(prop))
