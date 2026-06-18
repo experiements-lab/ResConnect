@@ -76,7 +76,7 @@ async def student_doc_url(
     student = result.scalar_one_or_none()
     if not student or not student.registration_doc_key:
         raise HTTPException(status_code=404, detail="No document uploaded")
-    return {"url": get_presigned_url(settings.minio_bucket_docs, student.registration_doc_key)}
+    return {"url": get_presigned_url(settings.supabase_bucket_docs, student.registration_doc_key)}
 
 
 @router.get("/landlords/{landlord_id}/doc")
@@ -89,7 +89,7 @@ async def landlord_doc_url(
     landlord = result.scalar_one_or_none()
     if not landlord or not landlord.ownership_doc_key:
         raise HTTPException(status_code=404, detail="No document uploaded")
-    return {"url": get_presigned_url(settings.minio_bucket_docs, landlord.ownership_doc_key)}
+    return {"url": get_presigned_url(settings.supabase_bucket_docs, landlord.ownership_doc_key)}
 
 
 @router.post("/students/{student_id}/verify")
