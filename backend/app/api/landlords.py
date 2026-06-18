@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.auth import get_current_user as get_kratos_session
-from app.core.storage import upload_file, ensure_buckets
+from app.core.storage import upload_file, ensure_buckets, get_presigned_url, delete_file
 from app.core.config import settings
 from app.models.landlord import Landlord
 from pydantic import BaseModel
@@ -25,6 +25,7 @@ class LandlordOut(BaseModel):
     phone: str | None
     verification_status: str
     is_su_accredited: bool
+    ownership_doc_key: str | None
 
     class Config:
         from_attributes = True
@@ -125,3 +126,39 @@ async def upload_ownership_doc(
     await db.commit()
 
     return {"message": "Ownership document uploaded. Verification pending.", "key": key}
+
+
+@router.get("/me/ownership-doc")
+async def get_ownership_doc_url(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await get_kratos_session(request)
+    identity_id = uuid.UUID(session["identity"]["id"])
+
+    result = await db.execute(select(Landlord).where(Landlord.identity_id == identity_id))
+    landlord = result.scalar_one_or_none()
+    if not landlord or not landlord.ownership_doc_key:
+        raise HTTPException(status_code=404, detail="No document uploaded")
+
+    return {"url": get_presigned_url(settings.supabase_bucket_docs, landlord.ownership_doc_key)}
+
+
+@router.delete("/me/ownership-doc")
+async def delete_ownership_doc(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await get_kratos_session(request)
+    identity_id = uuid.UUID(session["identity"]["id"])
+
+    result = await db.execute(select(Landlord).where(Landlord.identity_id == identity_id))
+    landlord = result.scalar_one_or_none()
+    if not landlord or not landlord.ownership_doc_key:
+        raise HTTPException(status_code=404, detail="No document uploaded")
+
+    delete_file(settings.supabase_bucket_docs, landlord.ownership_doc_key)
+    landlord.ownership_doc_key = None
+    await db.commit()
+
+    return {"message": "Ownership document deleted."}

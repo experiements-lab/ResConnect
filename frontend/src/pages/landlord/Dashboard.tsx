@@ -75,6 +75,7 @@ export default function LandlordDashboard() {
   const [docFile, setDocFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+  const [ownershipDocKey, setOwnershipDocKey] = useState<string | null>(null);
 
   // Property edit
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,7 +98,10 @@ export default function LandlordDashboard() {
   useEffect(() => {
     Promise.all([
       api.get("/properties/mine").then((r) => setProperties(r.data)),
-      api.get("/landlords/me").then((r) => setLandlordStatus(r.data.verification_status)),
+      api.get("/landlords/me").then((r) => {
+        setLandlordStatus(r.data.verification_status);
+        setOwnershipDocKey(r.data.ownership_doc_key);
+      }),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -266,13 +270,34 @@ export default function LandlordDashboard() {
     const form = new FormData();
     form.append("file", docFile);
     try {
-      await api.post("/landlords/me/upload-ownership", form);
+      const { data } = await api.post("/landlords/me/upload-ownership", form);
       setUploadMsg("Document uploaded! Awaiting admin verification.");
+      setOwnershipDocKey(data.key);
       setDocFile(null);
     } catch {
       setUploadMsg("Upload failed. Please try again.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const viewOwnershipDoc = async () => {
+    try {
+      const { data } = await api.get("/landlords/me/ownership-doc");
+      window.open(data.url, "_blank");
+    } catch {
+      setUploadMsg("Could not load document.");
+    }
+  };
+
+  const deleteOwnershipDoc = async () => {
+    if (!confirm("Delete your uploaded ownership document?")) return;
+    try {
+      await api.delete("/landlords/me/ownership-doc");
+      setOwnershipDocKey(null);
+      setUploadMsg("Document deleted.");
+    } catch {
+      setUploadMsg("Could not delete document. Please try again.");
     }
   };
 
@@ -322,13 +347,28 @@ export default function LandlordDashboard() {
                   : "Your properties are hidden from students until verified. Upload your ownership document to speed up the process."}
               </span>
             </div>
+            {ownershipDocKey && (
+              <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: landlordStatus === "rejected" ? "#991b1b" : "#92400e" }}>✓ Document on file</span>
+                <button className="btn-outline" style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem" }} onClick={viewOwnershipDoc}>View</button>
+                <button style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: "var(--radius)" }} onClick={deleteOwnershipDoc}>Delete</button>
+              </div>
+            )}
             <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setDocFile(e.target.files?.[0] || null)} style={{ border: "none", padding: 0, flex: 1, minWidth: 200 }} />
               <button className="btn-primary" onClick={uploadOwnershipDoc} disabled={!docFile || uploading} style={{ fontSize: "0.85rem" }}>
-                {uploading ? "Uploading..." : "Upload Ownership Doc"}
+                {uploading ? "Uploading..." : ownershipDocKey ? "Replace Document" : "Upload Ownership Doc"}
               </button>
             </div>
             {uploadMsg && <p style={{ fontSize: "0.85rem", color: "var(--maroon)" }}>{uploadMsg}</p>}
+          </div>
+        )}
+
+        {landlordStatus === "verified" && ownershipDocKey && (
+          <div className="row" style={{ gap: "0.5rem", alignItems: "center", marginBottom: "1.25rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            <span>Ownership document on file.</span>
+            <button className="btn-outline" style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem" }} onClick={viewOwnershipDoc}>View</button>
+            <button style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: "var(--radius)" }} onClick={deleteOwnershipDoc}>Delete</button>
           </div>
         )}
 
