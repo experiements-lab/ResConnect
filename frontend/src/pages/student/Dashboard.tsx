@@ -13,6 +13,7 @@ interface StudentProfile {
   reject_reason: string | null;
   faculty: string | null;
   nsfas_eligible: boolean;
+  registration_doc_key: string | null;
 }
 
 interface Enquiry {
@@ -76,6 +77,27 @@ export default function StudentDashboard() {
     }
   };
 
+  const viewDoc = async () => {
+    try {
+      const { data } = await api.get("/students/me/registration-doc");
+      window.open(data.url, "_blank");
+    } catch {
+      setUploadError("Could not load document.");
+    }
+  };
+
+  const deleteDoc = async () => {
+    if (!confirm("Delete your uploaded registration document?")) return;
+    try {
+      await api.delete("/students/me/registration-doc");
+      setProfile((p) => p ? { ...p, registration_doc_key: null } : p);
+      setUploadMsg("Document deleted.");
+      setUploadError("");
+    } catch {
+      setUploadError("Could not delete document. Please try again.");
+    }
+  };
+
   const traits = session?.user?.user_metadata as Record<string, string> | undefined;
   const verificationStatus = profile?.verification_status ?? "unverified";
 
@@ -133,14 +155,29 @@ export default function StudentDashboard() {
           <div className="card stack">
             <h3>Proof of Registration</h3>
             {verificationStatus === "verified" ? (
-              <p style={{ color: "var(--maroon)", fontSize: "0.9rem" }}>
-                Your account is verified. You can browse and enquire on listings.
-              </p>
+              <>
+                <p style={{ color: "var(--maroon)", fontSize: "0.9rem" }}>
+                  Your account is verified. You can browse and enquire on listings.
+                </p>
+                {profile?.registration_doc_key && (
+                  <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
+                    <button className="btn-outline" style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem" }} onClick={viewDoc}>View Document</button>
+                    <button style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: "var(--radius)" }} onClick={deleteDoc}>Delete</button>
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
                   Upload your SU registration document (PDF, JPG, or PNG, max 10MB) to unlock enquiries.
                 </p>
+                {profile?.registration_doc_key && (
+                  <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#92400e" }}>✓ Document on file</span>
+                    <button className="btn-outline" style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem" }} onClick={viewDoc}>View</button>
+                    <button style={{ fontSize: "0.8rem", padding: "0.3rem 0.7rem", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: "var(--radius)" }} onClick={deleteDoc}>Delete</button>
+                  </div>
+                )}
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
@@ -152,7 +189,7 @@ export default function StudentDashboard() {
                   onClick={uploadDoc}
                   disabled={!docFile || uploading}
                 >
-                  {uploading ? "Uploading..." : "Upload Document"}
+                  {uploading ? "Uploading..." : profile?.registration_doc_key ? "Replace Document" : "Upload Document"}
                 </button>
                 {uploadMsg && (
                   <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "var(--radius)", padding: "0.75rem", fontSize: "0.85rem", color: "#92400e" }}>

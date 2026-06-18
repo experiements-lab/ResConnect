@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.auth import get_current_user as get_kratos_session
-from app.core.storage import upload_file, ensure_buckets
+from app.core.storage import upload_file, ensure_buckets, get_presigned_url, delete_file
 from app.core.config import settings
 from app.models.student import Student
 from pydantic import BaseModel
@@ -30,6 +30,7 @@ class StudentOut(BaseModel):
     faculty: str | None
     nsfas_eligible: bool
     verification_status: str
+    registration_doc_key: str | None
 
     class Config:
         from_attributes = True
@@ -133,6 +134,42 @@ async def upload_registration_doc(
     await db.commit()
 
     return {"message": "Document uploaded. Verification pending.", "key": key}
+
+
+@router.get("/me/registration-doc")
+async def get_registration_doc_url(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await get_kratos_session(request)
+    identity_id = uuid.UUID(session["identity"]["id"])
+
+    result = await db.execute(select(Student).where(Student.identity_id == identity_id))
+    student = result.scalar_one_or_none()
+    if not student or not student.registration_doc_key:
+        raise HTTPException(status_code=404, detail="No document uploaded")
+
+    return {"url": get_presigned_url(settings.supabase_bucket_docs, student.registration_doc_key)}
+
+
+@router.delete("/me/registration-doc")
+async def delete_registration_doc(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await get_kratos_session(request)
+    identity_id = uuid.UUID(session["identity"]["id"])
+
+    result = await db.execute(select(Student).where(Student.identity_id == identity_id))
+    student = result.scalar_one_or_none()
+    if not student or not student.registration_doc_key:
+        raise HTTPException(status_code=404, detail="No document uploaded")
+
+    delete_file(settings.supabase_bucket_docs, student.registration_doc_key)
+    student.registration_doc_key = None
+    await db.commit()
+
+    return {"message": "Registration document deleted."}
 
 
 def _ext(content_type: str) -> str:
