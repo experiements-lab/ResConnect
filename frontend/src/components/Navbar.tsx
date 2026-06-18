@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useSession } from "../context/SessionContext";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { session, loading, logout } = useSession();
@@ -31,6 +32,7 @@ export default function Navbar() {
                 {role === "landlord" && (
                   <Link to="/landlord/dashboard" style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.95rem" }}>My Properties</Link>
                 )}
+                <NotificationBell />
                 <span style={{ color: "var(--gold)", fontSize: "0.9rem", fontWeight: 600 }}>
                   {displayName}
                 </span>

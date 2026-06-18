@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from app.api import students, landlords, properties, enquiries, admin
+from app.api import students, landlords, properties, enquiries, admin, notifications
 from app.core.config import settings
 from app.core.database import engine
 
@@ -30,6 +30,7 @@ app.include_router(landlords.router)
 app.include_router(properties.router)
 app.include_router(enquiries.router)
 app.include_router(admin.router)
+app.include_router(notifications.router)
 
 
 @app.on_event("startup")
