@@ -31,6 +31,11 @@ class LandlordOut(BaseModel):
         from_attributes = True
 
 
+class LandlordUpdate(BaseModel):
+    full_name: str | None = None
+    phone: str | None = None
+
+
 @router.post("/me", response_model=LandlordOut)
 async def create_landlord_profile(
     data: LandlordCreate,
@@ -63,6 +68,28 @@ async def get_my_profile(
     landlord = result.scalar_one_or_none()
     if not landlord:
         raise HTTPException(status_code=404, detail="Profile not found")
+    return landlord
+
+
+@router.patch("/me", response_model=LandlordOut)
+async def update_my_profile(
+    data: LandlordUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await get_kratos_session(request)
+    identity_id = uuid.UUID(session["identity"]["id"])
+
+    result = await db.execute(select(Landlord).where(Landlord.identity_id == identity_id))
+    landlord = result.scalar_one_or_none()
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(landlord, field, value)
+
+    await db.commit()
+    await db.refresh(landlord)
     return landlord
 
 

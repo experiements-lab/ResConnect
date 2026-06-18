@@ -77,6 +77,11 @@ export default function LandlordDashboard() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [landlordStatus, setLandlordStatus] = useState<string>("pending");
+  const [landlordProfile, setLandlordProfile] = useState({ full_name: "", email: "", phone: "" });
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileEditForm, setProfileEditForm] = useState({ full_name: "", phone: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState("");
 
   // Ownership doc upload
   const [docFile, setDocFile] = useState<File | null>(null);
@@ -108,11 +113,35 @@ export default function LandlordDashboard() {
       api.get("/landlords/me").then((r) => {
         setLandlordStatus(r.data.verification_status);
         setOwnershipDocKey(r.data.ownership_doc_key);
+        setLandlordProfile({ full_name: r.data.full_name, email: r.data.email, phone: r.data.phone ?? "" });
       }),
     ]).finally(() => setLoading(false));
   }, []);
 
   const pendingCount = enquiries.filter((e) => e.status === "sent" || e.status === "read").length;
+
+  const startEditProfile = () => {
+    setProfileEditForm({ full_name: landlordProfile.full_name, phone: landlordProfile.phone });
+    setProfileSaveError("");
+    setEditingProfile(true);
+  };
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileSaveError("");
+    try {
+      const { data } = await api.patch("/landlords/me", {
+        full_name: profileEditForm.full_name,
+        phone: profileEditForm.phone || null,
+      });
+      setLandlordProfile({ full_name: data.full_name, email: data.email, phone: data.phone ?? "" });
+      setEditingProfile(false);
+    } catch {
+      setProfileSaveError("Could not save changes. Please try again.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   // — Property actions —
   const startEdit = (prop: Property) => {
@@ -361,6 +390,48 @@ export default function LandlordDashboard() {
           <Link to="/landlord/property/new">
             <button className="btn-primary">+ Add Property</button>
           </Link>
+        </div>
+
+        <div className="card stack" style={{ marginBottom: "1.25rem" }}>
+          <h3>My Profile</h3>
+          {editingProfile ? (
+            <div className="stack" style={{ gap: "0.5rem" }}>
+              <label style={{ fontSize: "0.85rem" }}>
+                Full Name
+                <input
+                  type="text"
+                  value={profileEditForm.full_name}
+                  onChange={(e) => setProfileEditForm((f) => ({ ...f, full_name: e.target.value }))}
+                />
+              </label>
+              <label style={{ fontSize: "0.85rem" }}>
+                Phone
+                <input
+                  type="text"
+                  value={profileEditForm.phone}
+                  onChange={(e) => setProfileEditForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </label>
+              {profileSaveError && <p className="error">{profileSaveError}</p>}
+              <div className="row" style={{ gap: "0.5rem" }}>
+                <button className="btn-primary" style={{ fontSize: "0.85rem" }} onClick={saveProfile} disabled={savingProfile}>
+                  {savingProfile ? "Saving..." : "Save"}
+                </button>
+                <button className="btn-outline" style={{ fontSize: "0.85rem" }} onClick={() => setEditingProfile(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p><strong>Name:</strong> {landlordProfile.full_name}</p>
+              <p><strong>Email:</strong> {landlordProfile.email}</p>
+              <p><strong>Phone:</strong> {landlordProfile.phone || "—"}</p>
+              <button className="btn-outline" style={{ fontSize: "0.8rem", alignSelf: "flex-start" }} onClick={startEditProfile}>
+                Edit Profile
+              </button>
+            </>
+          )}
         </div>
 
         {(landlordStatus === "pending" || landlordStatus === "rejected") && (

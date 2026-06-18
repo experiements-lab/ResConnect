@@ -12,6 +12,7 @@ interface StudentProfile {
   verification_status: string;
   reject_reason: string | null;
   faculty: string | null;
+  year_of_study: number | null;
   nsfas_eligible: boolean;
   registration_doc_key: string | null;
 }
@@ -44,6 +45,10 @@ export default function StudentDashboard() {
   const [uploadError, setUploadError] = useState("");
   const [profileError, setProfileError] = useState(false);
   const [enquiriesError, setEnquiriesError] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({ faculty: "", year_of_study: "", nsfas_eligible: false });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState("");
 
   useEffect(() => {
     api.get("/students/me")
@@ -74,6 +79,33 @@ export default function StudentDashboard() {
       setUploadError("Upload failed. Please try again.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const startEditProfile = () => {
+    setEditForm({
+      faculty: profile?.faculty ?? "",
+      year_of_study: "",
+      nsfas_eligible: profile?.nsfas_eligible ?? false,
+    });
+    setProfileSaveError("");
+    setEditingProfile(true);
+  };
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileSaveError("");
+    try {
+      const { data } = await api.patch("/students/me", {
+        faculty: editForm.faculty || null,
+        nsfas_eligible: editForm.nsfas_eligible,
+      });
+      setProfile(data);
+      setEditingProfile(false);
+    } catch {
+      setProfileSaveError("Could not save changes. Please try again.");
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -127,7 +159,43 @@ export default function StudentDashboard() {
                 <p><strong>Name:</strong> {traits?.full_name}</p>
                 <p><strong>Email:</strong> {traits?.email}</p>
                 <p><strong>Student No:</strong> {traits?.student_number}</p>
-                {profile?.faculty && <p><strong>Faculty:</strong> {profile.faculty}</p>}
+                {editingProfile ? (
+                  <div className="stack" style={{ gap: "0.5rem" }}>
+                    <label style={{ fontSize: "0.85rem" }}>
+                      Faculty
+                      <input
+                        type="text"
+                        value={editForm.faculty}
+                        onChange={(e) => setEditForm((f) => ({ ...f, faculty: e.target.value }))}
+                      />
+                    </label>
+                    <label className="row" style={{ fontSize: "0.85rem", gap: "0.4rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={editForm.nsfas_eligible}
+                        onChange={(e) => setEditForm((f) => ({ ...f, nsfas_eligible: e.target.checked }))}
+                      />
+                      NSFAS eligible
+                    </label>
+                    {profileSaveError && <p className="error">{profileSaveError}</p>}
+                    <div className="row" style={{ gap: "0.5rem" }}>
+                      <button className="btn-primary" style={{ fontSize: "0.85rem" }} onClick={saveProfile} disabled={savingProfile}>
+                        {savingProfile ? "Saving..." : "Save"}
+                      </button>
+                      <button className="btn-outline" style={{ fontSize: "0.85rem" }} onClick={() => setEditingProfile(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {profile?.faculty && <p><strong>Faculty:</strong> {profile.faculty}</p>}
+                    <p><strong>NSFAS eligible:</strong> {profile?.nsfas_eligible ? "Yes" : "No"}</p>
+                    <button className="btn-outline" style={{ fontSize: "0.8rem", alignSelf: "flex-start" }} onClick={startEditProfile}>
+                      Edit Profile
+                    </button>
+                  </>
+                )}
                 <div className="row">
                   <strong>Verification:</strong>
                   <span className={`badge ${statusColor[verificationStatus]}`}>

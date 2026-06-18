@@ -30,10 +30,18 @@ class StudentOut(BaseModel):
     faculty: str | None
     nsfas_eligible: bool
     verification_status: str
+    reject_reason: str | None
     registration_doc_key: str | None
 
     class Config:
         from_attributes = True
+
+
+class StudentUpdate(BaseModel):
+    full_name: str | None = None
+    year_of_study: int | None = None
+    faculty: str | None = None
+    nsfas_eligible: bool | None = None
 
 
 @router.post("/me", response_model=StudentOut)
@@ -68,6 +76,28 @@ async def get_my_profile(
     student = result.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=404, detail="Profile not found")
+    return student
+
+
+@router.patch("/me", response_model=StudentOut)
+async def update_my_profile(
+    data: StudentUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await get_kratos_session(request)
+    identity_id = uuid.UUID(session["identity"]["id"])
+
+    result = await db.execute(select(Student).where(Student.identity_id == identity_id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(student, field, value)
+
+    await db.commit()
+    await db.refresh(student)
     return student
 
 
