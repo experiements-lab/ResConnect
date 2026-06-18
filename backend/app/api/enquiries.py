@@ -418,6 +418,31 @@ async def accept_enquiry(
     return enquiry
 
 
+@router.post("/{enquiry_id}/cancel", response_model=EnquiryOut)
+async def cancel_enquiry(
+    enquiry_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Landlord undoes a mistaken acceptance — restores room availability."""
+    enquiry = await _get_enquiry_for_landlord(enquiry_id, request, db)
+
+    if "cancelled" not in VALID_BOOKING_TRANSITIONS.get(enquiry.booking_status, []):
+        raise HTTPException(status_code=409, detail=f"Cannot cancel from '{enquiry.booking_status}' status")
+
+    enquiry.booking_status = "cancelled"
+
+    room_result = await db.execute(select(Room).where(Room.id == enquiry.room_id))
+    room = room_result.scalar_one_or_none()
+    if room:
+        room.available_count = min(room.available_count + 1, room.total_count)
+        room.is_available = True
+
+    await db.commit()
+    await db.refresh(enquiry)
+    return enquiry
+
+
 @router.post("/{enquiry_id}/decline", response_model=EnquiryOut)
 async def decline_enquiry(
     enquiry_id: uuid.UUID,

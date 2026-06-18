@@ -294,6 +294,12 @@ export default function LandlordDashboard() {
     setEnquiries((prev) => prev.map((e) => e.id === enquiryId ? { ...e, booking_status: data.booking_status } : e));
   };
 
+  const cancelAcceptance = async (enquiryId: string) => {
+    if (!confirm("Undo this acceptance? The room will become available again.")) return;
+    const { data } = await api.post(`/enquiries/${enquiryId}/cancel`);
+    setEnquiries((prev) => prev.map((e) => e.id === enquiryId ? { ...e, booking_status: data.booking_status } : e));
+  };
+
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
 
@@ -764,7 +770,15 @@ export default function LandlordDashboard() {
                         </button>
                       </div>
                     ) : eq.booking_status === "accepted" ? (
-                      <p style={{ fontSize: "0.82rem", color: "#166534", fontWeight: 600 }}>Student accepted — coordinate move-in via chat.</p>
+                      <div className="stack" style={{ gap: "0.4rem" }}>
+                        <p style={{ fontSize: "0.82rem", color: "#166534", fontWeight: 600 }}>Student accepted — coordinate move-in via chat.</p>
+                        <button
+                          style={{ fontSize: "0.78rem", padding: "0.3rem 0.7rem", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius)", color: "var(--text-muted)", alignSelf: "flex-start", cursor: "pointer" }}
+                          onClick={() => cancelAcceptance(eq.id)}
+                        >
+                          Undo acceptance
+                        </button>
+                      </div>
                     ) : null}
 
                     {decliningId === eq.id && (

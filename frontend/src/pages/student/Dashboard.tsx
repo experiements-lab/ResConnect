@@ -315,6 +315,7 @@ export default function StudentDashboard() {
                       {eq.booking_status === "accepted" && <span className="badge badge-green">Room Accepted</span>}
                       {eq.booking_status === "declined" && <span className="badge badge-maroon">Declined</span>}
                       {eq.booking_status === "viewing_arranged" && <span className="badge badge-yellow">Viewing Arranged</span>}
+                      {eq.booking_status === "cancelled" && <span className="badge badge-maroon">Acceptance Withdrawn</span>}
                       <span className={`badge ${eq.status === "responded" ? "badge-green" : "badge-yellow"}`}>
                         {eq.status === "responded" ? "Replied" : eq.status === "read" ? "Seen" : "Sent"}
                       </span>
@@ -330,6 +331,12 @@ export default function StudentDashboard() {
                     <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "var(--radius)", padding: "0.75rem", fontSize: "0.88rem" }}>
                       <strong style={{ color: "#991b1b" }}>Enquiry declined</strong>
                       {eq.reject_reason && <p style={{ color: "#991b1b", marginTop: "0.25rem" }}>Reason: {eq.reject_reason}</p>}
+                    </div>
+                  )}
+                  {eq.booking_status === "cancelled" && (
+                    <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "var(--radius)", padding: "0.75rem", fontSize: "0.88rem" }}>
+                      <strong style={{ color: "#991b1b" }}>Acceptance withdrawn</strong>
+                      <p style={{ color: "#991b1b", marginTop: "0.25rem" }}>The landlord withdrew their acceptance of this room. Please contact them via chat or browse other listings.</p>
                     </div>
                   )}
                   <p style={{ fontSize: "0.88rem", color: "var(--text-muted)", fontStyle: "italic" }}>
