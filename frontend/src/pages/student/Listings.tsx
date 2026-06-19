@@ -39,6 +39,7 @@ export default function Listings() {
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [enquiredRoomIds, setEnquiredRoomIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
@@ -71,6 +72,7 @@ export default function Listings() {
 
   const fetchListings = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     const params = new URLSearchParams();
     if (filters.max_price) params.set("max_price", filters.max_price);
     if (filters.room_type) params.set("room_type", filters.room_type);
@@ -82,6 +84,9 @@ export default function Listings() {
       const qs = params.toString();
       const { data } = await api.get(qs ? `/properties/?${qs}` : "/properties/");
       setProperties(data);
+    } catch {
+      setProperties([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -166,6 +171,11 @@ export default function Listings() {
 
         {loading ? (
           <p style={{ color: "var(--text-muted)" }}>Loading listings...</p>
+        ) : loadError ? (
+          <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
+            <p className="error">Couldn't load listings. Please check your connection and try again.</p>
+            <button className="btn-outline" style={{ marginTop: "1rem" }} onClick={fetchListings}>Retry</button>
+          </div>
         ) : properties.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
             <p style={{ color: "var(--text-muted)" }}>No properties match your filters.</p>

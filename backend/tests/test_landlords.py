@@ -174,6 +174,22 @@ async def test_get_ownership_doc_url_returns_presigned_url(client, auth_as, make
     assert resp.json()["url"] == "https://example.com/signed-url"
 
 
+async def test_get_ownership_doc_url_returns_502_on_storage_error(client, db_session, auth_as, make_landlord, monkeypatch):
+    from app.core.storage import StorageError
+    landlord = await make_landlord()
+    landlord.ownership_doc_key = "some/key.pdf"
+    await db_session.commit()
+    auth_as(landlord.identity_id, "landlord")
+
+    def _boom(*a, **k):
+        raise StorageError("simulated storage outage")
+    monkeypatch.setattr("app.api.landlords.get_presigned_url", _boom)
+
+    resp = await client.get("/landlords/me/ownership-doc")
+
+    assert resp.status_code == 502
+
+
 async def test_delete_ownership_doc_clears_key(client, db_session, auth_as, make_landlord, mock_storage):
     landlord = await make_landlord()
     auth_as(landlord.identity_id, "landlord")

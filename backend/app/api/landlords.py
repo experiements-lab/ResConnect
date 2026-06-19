@@ -3,11 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.auth import get_current_user as get_kratos_session
-from app.core.storage import upload_file, ensure_buckets, get_presigned_url, delete_file
+from app.core.storage import upload_file, ensure_buckets, get_presigned_url, delete_file, StorageError
 from app.core.config import settings
 from app.models.landlord import Landlord
 from pydantic import BaseModel
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/landlords", tags=["landlords"])
 
@@ -168,7 +171,12 @@ async def get_ownership_doc_url(
     if not landlord or not landlord.ownership_doc_key:
         raise HTTPException(status_code=404, detail="No document uploaded")
 
-    return {"url": get_presigned_url(settings.supabase_bucket_docs, landlord.ownership_doc_key)}
+    try:
+        url = get_presigned_url(settings.supabase_bucket_docs, landlord.ownership_doc_key)
+    except StorageError:
+        logger.exception("Failed to generate ownership doc URL for landlord %s", landlord.id)
+        raise HTTPException(status_code=502, detail="Could not generate document link. Please try again.")
+    return {"url": url}
 
 
 @router.delete("/me/ownership-doc")

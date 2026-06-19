@@ -258,6 +258,25 @@ async def test_delete_photo_removes_record(client, db_session, auth_as, make_lan
     assert remaining == []
 
 
+async def test_get_property_omits_broken_photo_link_instead_of_failing(client, db_session, make_landlord, make_room, monkeypatch):
+    from app.core.storage import StorageError
+    landlord = await make_landlord()
+    _, prop = await make_room(landlord)
+    photo = PropertyPhoto(property_id=prop.id, storage_key="broken/key.jpg", is_cover=True)
+    db_session.add(photo)
+    await db_session.commit()
+
+    def _boom(*a, **k):
+        raise StorageError("simulated storage outage")
+    monkeypatch.setattr("app.api.properties.get_presigned_url", _boom)
+
+    resp = await client.get(f"/properties/{prop.id}")
+
+    assert resp.status_code == 200
+    assert resp.json()["cover_photo_url"] is None
+    assert resp.json()["photos"][0]["url"] == ""
+
+
 async def test_delete_property_cascades_to_photos(client, db_session, auth_as, make_landlord, make_room, mock_storage):
     landlord = await make_landlord()
     _, prop = await make_room(landlord)

@@ -176,6 +176,22 @@ async def test_get_registration_doc_url_returns_presigned_url(client, auth_as, m
     assert resp.json()["url"] == "https://example.com/signed-url"
 
 
+async def test_get_registration_doc_url_returns_502_on_storage_error(client, db_session, auth_as, make_student, monkeypatch):
+    from app.core.storage import StorageError
+    student = await make_student()
+    student.registration_doc_key = "some/key.pdf"
+    await db_session.commit()
+    auth_as(student.identity_id, "student")
+
+    def _boom(*a, **k):
+        raise StorageError("simulated storage outage")
+    monkeypatch.setattr("app.api.students.get_presigned_url", _boom)
+
+    resp = await client.get("/students/me/registration-doc")
+
+    assert resp.status_code == 502
+
+
 async def test_delete_registration_doc_clears_key(client, db_session, auth_as, make_student, mock_storage):
     student = await make_student()
     auth_as(student.identity_id, "student")

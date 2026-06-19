@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.storage import get_presigned_url
+from app.core.storage import get_presigned_url, StorageError
 from app.models.student import Student
 from app.models.landlord import Landlord
 from app.api.notifications import create_notification
@@ -80,7 +80,12 @@ async def student_doc_url(
     student = result.scalar_one_or_none()
     if not student or not student.registration_doc_key:
         raise HTTPException(status_code=404, detail="No document uploaded")
-    return {"url": get_presigned_url(settings.supabase_bucket_docs, student.registration_doc_key)}
+    try:
+        url = get_presigned_url(settings.supabase_bucket_docs, student.registration_doc_key)
+    except StorageError:
+        logger.exception("Failed to generate registration doc URL for student %s", student_id)
+        raise HTTPException(status_code=502, detail="Could not generate document link. Please try again.")
+    return {"url": url}
 
 
 @router.get("/landlords/{landlord_id}/doc")
@@ -93,7 +98,12 @@ async def landlord_doc_url(
     landlord = result.scalar_one_or_none()
     if not landlord or not landlord.ownership_doc_key:
         raise HTTPException(status_code=404, detail="No document uploaded")
-    return {"url": get_presigned_url(settings.supabase_bucket_docs, landlord.ownership_doc_key)}
+    try:
+        url = get_presigned_url(settings.supabase_bucket_docs, landlord.ownership_doc_key)
+    except StorageError:
+        logger.exception("Failed to generate ownership doc URL for landlord %s", landlord_id)
+        raise HTTPException(status_code=502, detail="Could not generate document link. Please try again.")
+    return {"url": url}
 
 
 @router.post("/students/{student_id}/verify")

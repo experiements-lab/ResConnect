@@ -4,13 +4,16 @@ from sqlalchemy import select, and_, update as sql_update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.auth import get_current_user as get_kratos_session
-from app.core.storage import upload_file, get_presigned_url, ensure_buckets, delete_file
+from app.core.storage import upload_file, get_presigned_url, ensure_buckets, delete_file, StorageError
 from app.core.config import settings
 from app.models.landlord import Landlord
 from app.models.property import Property, Room, PropertyPhoto
 from pydantic import BaseModel, model_validator, Field as PydanticField
 from datetime import date, datetime, date as date_type
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/properties", tags=["properties"])
 
@@ -455,13 +458,23 @@ async def delete_property(
     return Response(status_code=204)
 
 
+def _safe_presigned_url(bucket: str, key: str) -> str | None:
+    """A single broken/missing storage object must not take down a listing
+    that contains many other, perfectly fine photos."""
+    try:
+        return get_presigned_url(bucket, key)
+    except StorageError:
+        logger.warning("Omitting broken photo link for %s/%s", bucket, key)
+        return None
+
+
 def _build_property_out(prop: Property) -> dict:
     cover = next((p for p in prop.photos if p.is_cover), None)
-    cover_url = get_presigned_url(settings.supabase_bucket_photos, cover.storage_key) if cover else None
+    cover_url = _safe_presigned_url(settings.supabase_bucket_photos, cover.storage_key) if cover else None
     photos = [
         PhotoOut(
             id=p.id,
-            url=get_presigned_url(settings.supabase_bucket_photos, p.storage_key),
+            url=_safe_presigned_url(settings.supabase_bucket_photos, p.storage_key) or "",
             is_cover=p.is_cover,
         )
         for p in prop.photos

@@ -68,3 +68,18 @@ async def test_reject_landlord_sets_status_and_reason(client, db_session, admin_
     await db_session.refresh(landlord)
     assert landlord.verification_status == "rejected"
     assert landlord.reject_reason == "Ownership docs unclear"
+
+
+async def test_student_doc_url_returns_502_on_storage_error(client, db_session, admin_headers, make_student, monkeypatch):
+    from app.core.storage import StorageError
+    student = await make_student()
+    student.registration_doc_key = "some/key.pdf"
+    await db_session.commit()
+
+    def _boom(*a, **k):
+        raise StorageError("simulated storage outage")
+    monkeypatch.setattr("app.api.admin.get_presigned_url", _boom)
+
+    resp = await client.get(f"/admin/students/{student.id}/doc", headers=admin_headers)
+
+    assert resp.status_code == 502
