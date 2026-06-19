@@ -60,11 +60,20 @@ def _fake_session(identity_id: uuid.UUID, role: str) -> dict:
     }
 
 
+ALL_AUTH_MODULES = (
+    "app.api.enquiries",
+    "app.api.notifications",
+    "app.api.properties",
+    "app.api.students",
+    "app.api.landlords",
+)
+
+
 @pytest.fixture
 def auth_as(monkeypatch):
     """Bypass real Supabase JWT verification: get_current_user is called directly
     in route bodies (not via Depends), so each importing module needs patching."""
-    def _auth_as(identity_id: uuid.UUID, role: str, modules=("app.api.enquiries", "app.api.notifications")):
+    def _auth_as(identity_id: uuid.UUID, role: str, modules=ALL_AUTH_MODULES):
         async def _fake(request):
             return _fake_session(identity_id, role)
         for mod in modules:
@@ -75,6 +84,19 @@ def auth_as(monkeypatch):
 @pytest.fixture
 def admin_headers():
     return {"X-Admin-Key": settings.secret_key}
+
+
+@pytest.fixture
+def mock_storage(monkeypatch):
+    """Storage functions are plain module-level functions imported directly into
+    route modules (not Depends-injected), so patch them per-module like get_kratos_session."""
+    def _mock(modules, presigned_url="https://example.com/signed-url"):
+        for mod in modules:
+            monkeypatch.setattr(f"{mod}.upload_file", lambda *a, **k: None)
+            monkeypatch.setattr(f"{mod}.get_presigned_url", lambda *a, **k: presigned_url)
+            monkeypatch.setattr(f"{mod}.delete_file", lambda *a, **k: None)
+            monkeypatch.setattr(f"{mod}.ensure_buckets", lambda: None)
+    return _mock
 
 
 @pytest_asyncio.fixture
@@ -112,16 +134,31 @@ async def make_landlord(db_session):
 
 @pytest_asyncio.fixture
 async def make_room(db_session):
-    async def _make(landlord, price=3500, available_count=1):
-        prop = Property(landlord_id=landlord.id, name="Test Property", address="1 Test St, Stellenbosch")
+    async def _make(
+        landlord,
+        price=3500,
+        available_count=1,
+        room_type="single",
+        nsfas_accepted=False,
+        amenities=None,
+        is_active=True,
+    ):
+        prop = Property(
+            landlord_id=landlord.id,
+            name="Test Property",
+            address="1 Test St, Stellenbosch",
+            is_active=is_active,
+        )
         db_session.add(prop)
         await db_session.flush()
         room = Room(
             property_id=prop.id,
-            room_type="single",
+            room_type=room_type,
             price_per_month=price,
             total_count=available_count,
             available_count=available_count,
+            nsfas_accepted=nsfas_accepted,
+            amenities=amenities or {},
         )
         db_session.add(room)
         await db_session.commit()
