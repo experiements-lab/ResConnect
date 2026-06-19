@@ -84,6 +84,16 @@ label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 640px) {
+  .navbar-links { display: none; }
+  .navbar-toggle { display: inline-flex !important; align-items: center; justify-content: center; }
+  .navbar-mobile-menu { display: flex; }
+}
+
+@media (min-width: 641px) {
+  .navbar-mobile-menu { display: none; }
+}
+
 .error { color: #c0392b; font-size: 0.85rem; margin-top: 0.3rem; }
 .stack { display: flex; flex-direction: column; gap: 1rem; }
 .row { display: flex; align-items: center; gap: 0.75rem; }
