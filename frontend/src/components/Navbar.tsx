@@ -17,11 +17,14 @@ export default function Navbar() {
       boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
       borderBottom: "3px solid var(--gold)",
     }}>
-      <div className="container row" style={{ justifyContent: "space-between" }}>
+      <div
+        className="container row"
+        style={{ justifyContent: "space-between", flexWrap: "wrap", rowGap: "0.5rem" }}
+      >
         <Link to="/" style={{ color: "white", fontWeight: 800, fontSize: "1.25rem", letterSpacing: "0.01em" }}>
           ResConnect
         </Link>
-        <div className="row">
+        <div className="row" style={{ flexWrap: "wrap", rowGap: "0.5rem", columnGap: "0.6rem" }}>
           <Link to="/listings" style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.95rem" }}>Browse</Link>
           {!loading && (
             session ? (
