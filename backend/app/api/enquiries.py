@@ -116,16 +116,16 @@ async def send_enquiry(
     await db.refresh(enquiry)
 
     try:
-        await create_notification(
-            db, landlord_owner.identity_id, "new_enquiry",
-            "New enquiry received",
-            f"{student.full_name} enquired about a room at {prop.name}",
-            "/landlord/dashboard",
-        )
+        async with db.begin_nested():
+            await create_notification(
+                db, landlord_owner.identity_id, "new_enquiry",
+                "New enquiry received",
+                f"{student.full_name} enquired about a room at {prop.name}",
+                "/landlord/dashboard",
+            )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for new enquiry %s", enquiry.id)
-        await db.rollback()
 
     return enquiry
 
@@ -285,17 +285,17 @@ async def respond_to_enquiry(
     await db.refresh(enquiry)
 
     try:
-        student, prop, _ = await _enquiry_notify_context(enquiry, db)
-        await create_notification(
-            db, student.identity_id, "enquiry_responded",
-            "Landlord responded to your enquiry",
-            f"You have a new response for {prop.name}",
-            "/student/dashboard",
-        )
+        async with db.begin_nested():
+            student, prop, _ = await _enquiry_notify_context(enquiry, db)
+            await create_notification(
+                db, student.identity_id, "enquiry_responded",
+                "Landlord responded to your enquiry",
+                f"You have a new response for {prop.name}",
+                "/student/dashboard",
+            )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for enquiry response %s", enquiry.id)
-        await db.rollback()
 
     return enquiry
 
@@ -423,25 +423,25 @@ async def send_message(
     await db.refresh(msg)
 
     try:
-        student, prop, landlord_owner = await _enquiry_notify_context(enquiry, db)
-        if sender_role == "student":
-            await create_notification(
-                db, landlord_owner.identity_id, "new_message",
-                "New message",
-                f"{student.full_name} sent a message about {prop.name}",
-                "/landlord/dashboard",
-            )
-        else:
-            await create_notification(
-                db, student.identity_id, "new_message",
-                "New message from landlord",
-                f"You have a new message about {prop.name}",
-                "/student/dashboard",
-            )
+        async with db.begin_nested():
+            student, prop, landlord_owner = await _enquiry_notify_context(enquiry, db)
+            if sender_role == "student":
+                await create_notification(
+                    db, landlord_owner.identity_id, "new_message",
+                    "New message",
+                    f"{student.full_name} sent a message about {prop.name}",
+                    "/landlord/dashboard",
+                )
+            else:
+                await create_notification(
+                    db, student.identity_id, "new_message",
+                    "New message from landlord",
+                    f"You have a new message about {prop.name}",
+                    "/student/dashboard",
+                )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for message on enquiry %s", enquiry_id)
-        await db.rollback()
 
     return msg
 
@@ -491,17 +491,17 @@ async def accept_enquiry(
     await db.refresh(enquiry)
 
     try:
-        student, prop, _ = await _enquiry_notify_context(enquiry, db)
-        await create_notification(
-            db, student.identity_id, "enquiry_accepted",
-            "Your booking was accepted!",
-            f"Your enquiry for {prop.name} has been accepted.",
-            "/student/dashboard",
-        )
+        async with db.begin_nested():
+            student, prop, _ = await _enquiry_notify_context(enquiry, db)
+            await create_notification(
+                db, student.identity_id, "enquiry_accepted",
+                "Your booking was accepted!",
+                f"Your enquiry for {prop.name} has been accepted.",
+                "/student/dashboard",
+            )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for accepted enquiry %s", enquiry.id)
-        await db.rollback()
 
     return enquiry
 
@@ -530,17 +530,17 @@ async def cancel_enquiry(
     await db.refresh(enquiry)
 
     try:
-        student, prop, _ = await _enquiry_notify_context(enquiry, db)
-        await create_notification(
-            db, student.identity_id, "enquiry_cancelled",
-            "Booking acceptance withdrawn",
-            f"Your accepted booking for {prop.name} was withdrawn by the landlord.",
-            "/student/dashboard",
-        )
+        async with db.begin_nested():
+            student, prop, _ = await _enquiry_notify_context(enquiry, db)
+            await create_notification(
+                db, student.identity_id, "enquiry_cancelled",
+                "Booking acceptance withdrawn",
+                f"Your accepted booking for {prop.name} was withdrawn by the landlord.",
+                "/student/dashboard",
+            )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for cancelled enquiry %s", enquiry.id)
-        await db.rollback()
 
     return enquiry
 
@@ -568,17 +568,17 @@ async def decline_enquiry(
     await db.refresh(enquiry)
 
     try:
-        student, prop, _ = await _enquiry_notify_context(enquiry, db)
-        await create_notification(
-            db, student.identity_id, "enquiry_declined",
-            "Your enquiry was declined",
-            f"Your enquiry for {prop.name} was declined: {body.reason}",
-            "/student/dashboard",
-        )
+        async with db.begin_nested():
+            student, prop, _ = await _enquiry_notify_context(enquiry, db)
+            await create_notification(
+                db, student.identity_id, "enquiry_declined",
+                "Your enquiry was declined",
+                f"Your enquiry for {prop.name} was declined: {body.reason}",
+                "/student/dashboard",
+            )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for declined enquiry %s", enquiry.id)
-        await db.rollback()
 
     return enquiry
 
@@ -600,16 +600,16 @@ async def arrange_viewing(
     await db.refresh(enquiry)
 
     try:
-        student, prop, _ = await _enquiry_notify_context(enquiry, db)
-        await create_notification(
-            db, student.identity_id, "viewing_arranged",
-            "Viewing arranged",
-            f"A viewing has been arranged for {prop.name}.",
-            "/student/dashboard",
-        )
+        async with db.begin_nested():
+            student, prop, _ = await _enquiry_notify_context(enquiry, db)
+            await create_notification(
+                db, student.identity_id, "viewing_arranged",
+                "Viewing arranged",
+                f"A viewing has been arranged for {prop.name}.",
+                "/student/dashboard",
+            )
         await db.commit()
     except Exception:
         logger.exception("Failed to create notification for arranged viewing %s", enquiry.id)
-        await db.rollback()
 
     return enquiry
