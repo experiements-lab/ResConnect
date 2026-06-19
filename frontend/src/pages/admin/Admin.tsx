@@ -82,24 +82,34 @@ export default function Admin() {
   };
 
   const action = async (type: "students" | "landlords", id: string, act: "verify") => {
-    await api.post(`/admin/${type}/${id}/${act}`, {}, { headers });
-    if (type === "students") {
-      setStudents((prev) => prev.map((s) => s.id === id ? { ...s, verification_status: "verified" } : s));
-    } else {
-      setLandlords((prev) => prev.map((l) => l.id === id ? { ...l, verification_status: "verified" } : l));
+    setError("");
+    try {
+      await api.post(`/admin/${type}/${id}/${act}`, {}, { headers });
+      if (type === "students") {
+        setStudents((prev) => prev.map((s) => s.id === id ? { ...s, verification_status: "verified" } : s));
+      } else {
+        setLandlords((prev) => prev.map((l) => l.id === id ? { ...l, verification_status: "verified" } : l));
+      }
+    } catch {
+      setError(`Failed to verify this ${type === "students" ? "student" : "landlord"}. Please try again.`);
     }
   };
 
   const confirmReject = async (type: "students" | "landlords", id: string) => {
     if (!rejectReason.trim()) return;
-    await api.post(`/admin/${type}/${id}/reject`, { reason: rejectReason }, { headers });
-    if (type === "students") {
-      setStudents((prev) => prev.map((s) => s.id === id ? { ...s, verification_status: "rejected" } : s));
-    } else {
-      setLandlords((prev) => prev.map((l) => l.id === id ? { ...l, verification_status: "rejected" } : l));
+    setError("");
+    try {
+      await api.post(`/admin/${type}/${id}/reject`, { reason: rejectReason }, { headers });
+      if (type === "students") {
+        setStudents((prev) => prev.map((s) => s.id === id ? { ...s, verification_status: "rejected" } : s));
+      } else {
+        setLandlords((prev) => prev.map((l) => l.id === id ? { ...l, verification_status: "rejected" } : l));
+      }
+      setRejectingId(null);
+      setRejectReason("");
+    } catch {
+      setError(`Failed to reject this ${type === "students" ? "student" : "landlord"}. Please try again.`);
     }
-    setRejectingId(null);
-    setRejectReason("");
   };
 
   if (!adminKey) {
@@ -143,6 +153,8 @@ export default function Admin() {
             Sign out
           </button>
         </div>
+
+        {error && <p className="error" style={{ marginBottom: "1rem" }}>{error}</p>}
 
         <div className="row" style={{ marginBottom: "1.5rem", gap: "0.5rem" }}>
           {(["students", "landlords"] as const).map((t) => {
