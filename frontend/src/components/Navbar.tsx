@@ -22,7 +22,6 @@ export default function Navbar() {
         {role === "landlord" && (
           <Link to="/landlord/dashboard" style={linkStyle} onClick={() => setMenuOpen(false)}>My Properties</Link>
         )}
-        <NotificationBell />
         <span style={{ color: "var(--gold)", fontSize: "0.9rem", fontWeight: 600 }}>
           {displayName}
         </span>
@@ -61,27 +60,31 @@ export default function Navbar() {
           {links}
         </div>
 
-        <button
-          className="navbar-toggle"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-          style={{
-            display: "none",
-            background: "transparent",
-            border: "none",
-            padding: "0.4rem",
-            color: "white",
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            {menuOpen ? (
-              <path d="M6 6l12 12M18 6L6 18" />
-            ) : (
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            )}
-          </svg>
-        </button>
+        <div className="row" style={{ gap: "0.5rem" }}>
+          {!loading && session && <NotificationBell />}
+
+          <button
+            className="navbar-toggle"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+            style={{
+              display: "none",
+              background: "transparent",
+              border: "none",
+              padding: "0.4rem",
+              color: "white",
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              {menuOpen ? (
+                <path d="M6 6l12 12M18 6L6 18" />
+              ) : (
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {menuOpen && (
